@@ -372,7 +372,7 @@ public class SystemMetricsCollector : IMetricsCollector
             var psi = new ProcessStartInfo
             {
                 FileName = "ps",
-                Arguments = "-eo pid,comm,%cpu,rss --sort=-%cpu | head -n 11",
+                Arguments = "-eo pid,comm,%cpu,rss --sort=-%cpu",
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -388,18 +388,25 @@ public class SystemMetricsCollector : IMetricsCollector
             int coreCount = Environment.ProcessorCount;
             
             var allProcs = new List<ProcessMetrics>();
+            // Skip the header (index 0)
             for (int i = 1; i < lines.Length; i++)
             {
                 var parts = lines[i].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 4 && int.TryParse(parts[0], out int pid) && double.TryParse(parts[2], out double cpu) && long.TryParse(parts[3], out long rss))
+                if (parts.Length >= 4)
                 {
-                    allProcs.Add(new ProcessMetrics
+                    if (int.TryParse(parts[0], out int pid) && 
+                        double.TryParse(parts[parts.Length - 2], out double cpu) && 
+                        long.TryParse(parts[parts.Length - 1], out long rss))
                     {
-                        ProcessId = pid,
-                        Name = parts[1],
-                        CpuUsagePercentage = Math.Round(cpu / coreCount, 2),
-                        MemoryUsageBytes = rss * 1024
-                    });
+                        string name = string.Join(" ", parts.Skip(1).Take(parts.Length - 3));
+                        allProcs.Add(new ProcessMetrics
+                        {
+                            ProcessId = pid,
+                            Name = name,
+                            CpuUsagePercentage = Math.Round(cpu / coreCount, 2),
+                            MemoryUsageBytes = rss * 1024
+                        });
+                    }
                 }
             }
 
@@ -410,7 +417,11 @@ public class SystemMetricsCollector : IMetricsCollector
                 .ToList();
 
             processes.AddRange(merged);
-        } catch { }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Linux processes via 'ps' command.");
+        }
     }
 }
 #pragma warning restore CA1416
