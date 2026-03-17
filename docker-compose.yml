@@ -6,8 +6,8 @@ services:
       context: . 
       dockerfile: Dockerfile
     container_name: polancowatch_backend_core
-    ports:
-      - "80:80" 
+    # ports:
+    #   - "80:80" 
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:80
