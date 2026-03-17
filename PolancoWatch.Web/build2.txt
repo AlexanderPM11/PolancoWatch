@@ -1,0 +1,94 @@
+﻿[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...Γ£ô 2679 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.46 kB Γöé gzip:   0.30 kB
+dist/assets/index-BXv-732k.css   34.77 kB Γöé gzip:   6.00 kB
+dist/assets/index-D6wpkFyt.js   703.72 kB Γöé gzip: 212.87 kB
+
+node : [33m[plugin builtin:vite-reporter] 
+At line:1 char:1
++ node ./node_modules/vite/bin/vite.js build 2>&1 | 
+Out-File build2.txt ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([33m[p 
+   lugin builtin:vite-reporter] :String) [], Remote  
+  Exception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(!) Some chunks are larger than 500 kB after 
+minification. Consider:
+- Using dynamic import() to code-split the 
+application
+- Use build.rolldownOptions.output.codeSplitting to 
+improve chunking: https://rolldown.rs/reference/Outpu
+tOptions.codeSplitting
+- Adjust chunk size limit for this warning via 
+build.chunkSizeWarningLimit.[39m
+[31mΓ£ù[39m Build failed in 454ms
+[31merror during build:
+[31mBuild failed with 1 error:
+
+Error: [vite]: Rolldown failed to resolve import 
+"react-is" from "C:/Projects/Personal/Programacion/Po
+lancoWatch/PolancoWatch.Web/node_modules/recharts/es6
+/util/ReactUtils.js".
+This is most likely unintended because it can break 
+your application at runtime.
+If you do want to externalize this module explicitly 
+add it to
+`build.rollupOptions.external`
+    at viteLog (file:///C:/Projects/Personal/Programa
+cion/PolancoWatch/PolancoWatch.Web/node_modules/vite/
+dist/node/chunks/node.js:32887:57)
+    at file:///C:/Projects/Personal/Programacion/Pola
+ncoWatch/PolancoWatch.Web/node_modules/vite/dist/node
+/chunks/node.js:32923:71
+    at onwarn (file:///C:/Projects/Personal/Programac
+ion/PolancoWatch/PolancoWatch.Web/node_modules/@vitej
+s/plugin-react/dist/index.js:40:7)
+    at file:///C:/Projects/Personal/Programacion/Pola
+ncoWatch/PolancoWatch.Web/node_modules/vite/dist/node
+/chunks/node.js:32923:28
+    at onRollupLog (file:///C:/Projects/Personal/Prog
+ramacion/PolancoWatch/PolancoWatch.Web/node_modules/v
+ite/dist/node/chunks/node.js:32918:63)
+    at onLog (file:///C:/Projects/Personal/Programaci
+on/PolancoWatch/PolancoWatch.Web/node_modules/vite/di
+st/node/chunks/node.js:32688:4)
+    at file:///C:/Projects/Personal/Programacion/Pola
+ncoWatch/PolancoWatch.Web/node_modules/rolldown/dist/
+shared/rolldown-build-4YnQkA76.mjs:49:26
+    at logger (file:///C:/Projects/Personal/Programac
+ion/PolancoWatch/PolancoWatch.Web/node_modules/rolldo
+wn/dist/shared/rolldown-build-4YnQkA76.mjs:40:3)
+    at onLog (file:///C:/Projects/Personal/Programaci
+on/PolancoWatch/PolancoWatch.Web/node_modules/rolldow
+n/dist/shared/bindingify-input-options-Cu7pt6SZ.mjs:1
+945:32)[31m
+    at aggregateBindingErrorsIntoJsError (file:///C:/
+Projects/Personal/Programacion/PolancoWatch/PolancoWa
+tch.Web/node_modules/rolldown/dist/shared/error-CP8sm
+W_P.mjs:48:18)
+    at unwrapBindingResult (file:///C:/Projects/Perso
+nal/Programacion/PolancoWatch/PolancoWatch.Web/node_m
+odules/rolldown/dist/shared/error-CP8smW_P.mjs:18:128
+)
+    at #build (file:///C:/Projects/Personal/Programac
+ion/PolancoWatch/PolancoWatch.Web/node_modules/rolldo
+wn/dist/shared/rolldown-build-4YnQkA76.mjs:3311:34)
+    at async buildEnvironment (file:///C:/Projects/Pe
+rsonal/Programacion/PolancoWatch/PolancoWatch.Web/nod
+e_modules/vite/dist/node/chunks/node.js:32794:64)
+    at async Object.build (file:///C:/Projects/Person
+al/Programacion/PolancoWatch/PolancoWatch.Web/node_mo
+dules/vite/dist/node/chunks/node.js:33216:19)
+    at async Object.buildApp (file:///C:/Projects/Per
+sonal/Programacion/PolancoWatch/PolancoWatch.Web/node
+_modules/vite/dist/node/chunks/node.js:33213:153)
+    at async CAC.<anonymous> (file:///C:/Projects/Per
+sonal/Programacion/PolancoWatch/PolancoWatch.Web/node
+_modules/vite/dist/node/cli.js:778:3) {
+  errors: [Getter/Setter]
+}[39m
