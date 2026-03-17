@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using PolancoWatch.Application.Interfaces;
 using PolancoWatch.Domain.Models;
@@ -7,17 +8,21 @@ namespace PolancoWatch.Infrastructure.Services;
 
 using System.Management;
 
+using Microsoft.Extensions.Logging;
+
 #pragma warning disable CA1416
 public class SystemMetricsCollector : IMetricsCollector
 {
     private ulong _previousTotalTime;
     private ulong _previousIdleTime;
 
+    private readonly ILogger<SystemMetricsCollector> _logger;
     private PerformanceCounter? _winCpuCounter;
     private PerformanceCounter? _winMemCounter;
 
-    public SystemMetricsCollector()
+    public SystemMetricsCollector(ILogger<SystemMetricsCollector> logger)
     {
+        _logger = logger;
         if (OperatingSystem.IsWindows())
         {
             try {
@@ -154,21 +159,84 @@ public class SystemMetricsCollector : IMetricsCollector
     {
         try
         {
-            var running = Process.GetProcesses()
-                .OrderByDescending(p => p.WorkingSet64)
-                .Take(10);
-                
-            foreach (var p in running)
+            var sw = Stopwatch.StartNew();
+            // Use WMI for high-performance formatted counters (this is pre-calculated by OS)
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT IDProcess, Name, PercentProcessorTime, WorkingSetPrivate FROM Win32_PerfFormattedData_PerfProc_Process " +
+                "WHERE Name != '_Total' AND Name != 'Idle'");
+            
+            searcher.Options.Timeout = TimeSpan.FromSeconds(2);
+            int coreCount = Environment.ProcessorCount;
+            var allProcesses = new List<ProcessMetrics>();
+
+            using (var results = searcher.Get())
             {
-                processes.Add(new ProcessMetrics
+                foreach (ManagementObject obj in results)
                 {
-                    ProcessId = p.Id,
-                    Name = p.ProcessName,
-                    MemoryUsageBytes = p.WorkingSet64,
-                    CpuUsagePercentage = 0 // CPU per process requires another PerformanceCounter instance per process
-                });
+                    try
+                    {
+                        var pidObj = obj["IDProcess"];
+                        var nameObj = obj["Name"];
+                        var cpuObj = obj["PercentProcessorTime"];
+                        var memObj = obj["WorkingSetPrivate"];
+
+                        if (pidObj == null) continue;
+
+                        allProcesses.Add(new ProcessMetrics
+                        {
+                            ProcessId = Convert.ToInt32(pidObj),
+                            Name = nameObj?.ToString() ?? "Unknown",
+                            CpuUsagePercentage = Math.Round(Convert.ToDouble(cpuObj ?? 0) / coreCount, 1),
+                            MemoryUsageBytes = Convert.ToInt64(memObj ?? 0)
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error processing WMI object: {ex.Message}");
+                    }
+                }
             }
-        } catch { }
+
+            if (!allProcesses.Any())
+            {
+                _logger.LogWarning("WMI query returned no processes. Falling back to Process.GetProcesses().");
+                throw new Exception("Empty WMI result"); // Trigger fallback in catch block
+            }
+
+            _logger.LogDebug("WMI Process Collection took {Elapsed}ms for {Count} items.", sw.ElapsedMilliseconds, allProcesses.Count);
+
+            var topCpu = allProcesses.OrderByDescending(p => p.CpuUsagePercentage).Take(15);
+            var topMem = allProcesses.OrderByDescending(p => p.MemoryUsageBytes).Take(15);
+
+            var merged = topCpu.Concat(topMem)
+                .GroupBy(p => p.ProcessId)
+                .Select(g => g.First())
+                .OrderByDescending(p => p.CpuUsagePercentage)
+                .ToList();
+
+            processes.AddRange(merged);
+        } 
+        catch (Exception ex) 
+        {
+            Debug.WriteLine($"WMI Process Collection Error: {ex.Message}");
+            // Fallback to basic process list if WMI fails
+            try {
+                var running = Process.GetProcesses()
+                    .OrderByDescending(p => p.WorkingSet64)
+                    .Take(15);
+                    
+                foreach (var p in running)
+                {
+                    processes.Add(new ProcessMetrics
+                    {
+                        ProcessId = p.Id,
+                        Name = p.ProcessName,
+                        MemoryUsageBytes = p.WorkingSet64,
+                        CpuUsagePercentage = 0
+                    });
+                }
+            } catch { }
+        }
         await Task.CompletedTask;
     }
 
@@ -317,20 +385,31 @@ public class SystemMetricsCollector : IMetricsCollector
             await process.WaitForExitAsync();
 
             var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            int coreCount = Environment.ProcessorCount;
+            
+            var allProcs = new List<ProcessMetrics>();
             for (int i = 1; i < lines.Length; i++)
             {
                 var parts = lines[i].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 4 && int.TryParse(parts[0], out int pid) && double.TryParse(parts[2], out double cpu) && long.TryParse(parts[3], out long rss))
                 {
-                    processes.Add(new ProcessMetrics
+                    allProcs.Add(new ProcessMetrics
                     {
                         ProcessId = pid,
                         Name = parts[1],
-                        CpuUsagePercentage = Math.Round(cpu, 2),
+                        CpuUsagePercentage = Math.Round(cpu / coreCount, 2),
                         MemoryUsageBytes = rss * 1024
                     });
                 }
             }
+
+            var merged = allProcs.OrderByDescending(p => p.CpuUsagePercentage).Take(15)
+                .Concat(allProcs.OrderByDescending(p => p.MemoryUsageBytes).Take(15))
+                .GroupBy(p => p.ProcessId)
+                .Select(g => g.First())
+                .ToList();
+
+            processes.AddRange(merged);
         } catch { }
     }
 }

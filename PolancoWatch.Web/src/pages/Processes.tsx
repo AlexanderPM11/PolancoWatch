@@ -10,11 +10,19 @@ export default function Processes() {
     const [isKilling, setIsKilling] = useState<number | null>(null);
     const [confirmPid, setConfirmPid] = useState<number | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [sortBy, setSortBy] = useState<'cpu' | 'ram'>('cpu');
 
-    const filteredProcesses = metrics?.topProcesses?.filter(p => 
+
+    const sortedProcesses = [...(metrics?.topProcesses || [])].sort((a, b) => {
+        if (sortBy === 'cpu') return b.cpuUsagePercentage - a.cpuUsagePercentage;
+        return b.memoryUsageBytes - a.memoryUsageBytes;
+    });
+
+    const filteredProcesses = sortedProcesses.filter(p => 
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         p.processId.toString().includes(searchTerm)
-    ) || [];
+    );
+
 
     const handleKill = async (pid: number) => {
         setIsKilling(pid);
@@ -33,7 +41,7 @@ export default function Processes() {
     const selectedProc = metrics?.topProcesses?.find(p => p.processId === confirmPid);
 
     return (
-        <div className="min-h-screen bg-obsidian-950 text-slate-300 font-sans selection:bg-brand-primary/30 flex-1 pl-20 lg:pl-72 transition-all duration-500">
+        <div className="min-h-screen bg-obsidian-950 text-slate-300 font-sans selection:bg-brand-primary/30 flex-1 pl-0 lg:pl-20 xl:pl-72 transition-all duration-500">
              {/* Background Texture Overlay */}
              <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-0" 
                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
@@ -128,9 +136,24 @@ export default function Processes() {
                                 type="text" 
                                 placeholder="SEARCH PID_OR_NAME..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="bg-obsidian-900/60 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-black text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-primary/50 focus:ring-4 focus:ring-brand-primary/5 w-full md:w-80 transition-all uppercase tracking-widest"
                             />
+                        </div>
+
+                        <div className="flex bg-obsidian-900/60 p-1 rounded-2xl border border-white/5">
+                            <button 
+                                onClick={() => setSortBy('cpu')}
+                                className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${sortBy === 'cpu' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                Sort by CPU
+                            </button>
+                            <button 
+                                onClick={() => setSortBy('ram')}
+                                className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${sortBy === 'ram' ? 'bg-brand-secondary text-white shadow-lg shadow-brand-secondary/20' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                Sort by RAM
+                            </button>
                         </div>
                     </div>
                 </header>
@@ -174,10 +197,11 @@ export default function Processes() {
                                         <td className="px-8 py-6 text-right">
                                             <button 
                                                 onClick={() => setConfirmPid(proc.processId)}
-                                                className="p-2 text-slate-500 hover:text-brand-accent transition-colors opacity-0 group-hover:opacity-100"
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-rose-500/5 hover:bg-rose-500/20 border border-rose-500/10 hover:border-rose-500/30 text-rose-500/70 hover:text-rose-500 rounded-xl transition-all group/btn"
                                                 title="Kill Process"
                                             >
-                                                <Trash2 size={18} />
+                                                <span className="text-[10px] font-black uppercase tracking-widest opacity-0 group-hover/btn:opacity-100 transition-opacity">Terminate</span>
+                                                <Trash2 size={16} />
                                             </button>
                                         </td>
                                     </tr>

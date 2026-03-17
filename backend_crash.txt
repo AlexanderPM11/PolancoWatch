@@ -1,0 +1,14 @@
+Using launch settings from PolancoWatch.API\Properties\launchSettings.json...
+Building...
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (10ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*) FROM "sqlite_master" WHERE "type" = 'table' AND "rootpage" IS NOT NULL;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "Users" AS "u")
+info: PolancoWatch.Infrastructure.Services.AlertEvaluatorHostedService[0]
+      Alert Evaluator Hosted Service is starting.
+info: PolancoWatch.Infrastructure.Services.SystemMetricsHostedService[0]
+      System Metrics Hosted Service is starting.

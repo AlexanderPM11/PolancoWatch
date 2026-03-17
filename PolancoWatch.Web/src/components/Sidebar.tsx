@@ -7,7 +7,9 @@ import {
     ChevronLeft, 
     ChevronRight,
     ShieldCheck,
-    User
+    User,
+    Menu,
+    X
 } from 'lucide-react';
 import { useState } from 'react';
 import { authService } from '../services/api';
@@ -48,6 +50,12 @@ export default function Sidebar() {
     const navigate = useNavigate();
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
+
+    const handleNavigate = (path: string) => {
+        navigate(path);
+        setMobileOpen(false);
+    };
 
     const menuItems = [
         { icon: <LayoutDashboard size={20} />, label: 'Console', path: '/' },
@@ -57,11 +65,30 @@ export default function Sidebar() {
     ];
 
     return (
-        <aside 
-            className={`fixed left-0 top-0 h-screen bg-obsidian-900/60 backdrop-blur-3xl border-r border-white/5 transition-all duration-500 z-50 flex flex-col ${
-                collapsed ? 'w-20' : 'w-72'
-            }`}
-        >
+        <>
+            {/* Mobile Toggle Button */}
+            <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="lg:hidden fixed top-6 left-6 z-[100] p-3 rounded-xl bg-obsidian-900 border border-white/10 text-brand-primary shadow-2xl transition-all active:scale-95"
+            >
+                {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+
+            {/* Mobile Backdrop */}
+            {mobileOpen && (
+                <div 
+                    className="fixed inset-0 bg-obsidian-950/80 backdrop-blur-md z-[60] lg:hidden animate-fade-in"
+                    onClick={() => setMobileOpen(false)}
+                />
+            )}
+
+            <aside 
+                className={`fixed left-0 top-0 h-screen bg-obsidian-900/60 backdrop-blur-3xl border-r border-white/5 transition-all duration-500 z-[70] flex flex-col ${
+                    collapsed ? 'w-20' : 'w-72'
+                } ${
+                    mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                }`}
+            >
             {/* Logo Section */}
             <div className="h-24 flex items-center px-6 mb-8 mt-2">
                 <div className="flex items-center gap-4 overflow-hidden">
@@ -87,7 +114,7 @@ export default function Sidebar() {
                         {...item}
                         isActive={location.pathname === item.path}
                         collapsed={collapsed}
-                        onClick={() => navigate(item.path)}
+                        onClick={() => handleNavigate(item.path)}
                     />
                 ))}
             </div>
@@ -119,5 +146,6 @@ export default function Sidebar() {
                 </div>
             )}
         </aside>
+        </>
     );
 }
