@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using PolancoWatch.Application.DTOs;
 using PolancoWatch.Application.Interfaces;
 
@@ -22,5 +23,22 @@ public class AuthController : ControllerBase
         if (response == null) return Unauthorized(new { message = "Invalid username or password" });
 
         return Ok(response);
+    }
+
+    [Authorize]
+    [HttpPost("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        var username = User.Identity?.Name;
+        if (string.IsNullOrEmpty(username)) return Unauthorized();
+
+        var result = await _authService.UpdateProfileAsync(username, request);
+        if (!result.Success) return BadRequest(new { message = result.Message });
+
+        return Ok(new { 
+            message = result.Message,
+            token = result.NewToken,
+            username = request.NewUsername ?? username
+        });
     }
 }

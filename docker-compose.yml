@@ -1,27 +1,31 @@
 version: '3.8'
 
 services:
-  polancowatch-api:
+  api:
     build:
       context: .
-      dockerfile: PolancoWatch.API/Dockerfile
-    ports:
-      - "5200:8080"
+      dockerfile: Dockerfile
+    container_name: polancowatch-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/polancowatch.db
     volumes:
       - polancowatch_data:/app/data
-    restart: unless-stopped
+    ports:
+      - "5246:8080"
+    restart: always
 
-  polancowatch-web:
+  web:
     build:
       context: ./PolancoWatch.Web
       dockerfile: Dockerfile
+    container_name: polancowatch-web
     ports:
       - "80:80"
     depends_on:
-      - polancowatch-api
-    restart: unless-stopped
+      - api
+    restart: always
 
 volumes:
   polancowatch_data:

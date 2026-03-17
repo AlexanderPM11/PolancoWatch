@@ -55,6 +55,31 @@ public class SystemMetricsCollector : IMetricsCollector
         return snapshot;
     }
 
+    public async Task<(bool Success, string Message)> KillProcessAsync(int pid)
+    {
+        try
+        {
+            var process = Process.GetProcessById(pid);
+            process.Kill(true); // Kill entire process tree
+            await process.WaitForExitAsync();
+            return (true, $"Process {pid} ({process.ProcessName}) terminated successfully.");
+        }
+        catch (ArgumentException)
+        {
+            return (false, $"Process {pid} was not found. It may have already exited.");
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 5) // Access Denied
+        {
+            return (false, "Access Denied. PolancoWatch does not have sufficient permissions to terminate this process. Try running the service as Administrator/Root.");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to kill process {pid}: {ex.Message}");
+            return (false, $"System Error: {ex.Message}");
+        }
+    }
+
+
     private async Task ParseCpuWindowsAsync(CpuMetrics metric)
     {
         if (_winCpuCounter != null)

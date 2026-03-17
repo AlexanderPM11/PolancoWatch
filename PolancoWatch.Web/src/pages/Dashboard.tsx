@@ -16,57 +16,40 @@ export default function Dashboard() {
     }, [navigate]);
 
     return (
-        <div className="min-h-screen bg-obsidian-950 text-slate-300 font-sans selection:bg-brand-primary/30">
+        <div className="min-h-screen bg-obsidian-950 text-slate-300 font-sans selection:bg-brand-primary/30 flex-1 pl-20 lg:pl-72 transition-all duration-500">
             {/* Background Texture Overlay */}
             <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-0" 
                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
             </div>
 
-            <nav className="border-b border-white/3 bg-obsidian-900/40 backdrop-blur-2xl sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto px-6 lg:px-8">
-                    <div className="flex justify-between h-20 items-center">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-obsidian-800 border border-white/5 flex items-center justify-center text-brand-primary font-bold shadow-2xl overflow-hidden relative group">
-                                <div className="absolute inset-0 bg-linear-to-br from-brand-primary/20 to-brand-secondary/20 animate-pulse-slow"></div>
-                                <span className="relative z-10 text-xl tracking-tighter">P</span>
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="font-bold text-lg tracking-tight text-white leading-none">POLANCO<span className="text-brand-secondary">WATCH</span></span>
-                                <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mt-1">System Monitor v1.0</span>
-                            </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-6">
-                            <div className="hidden md:flex flex-col text-right mr-4">
-                                <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Global Status</span>
-                                {isConnected ? (
-                                    <span className="text-xs font-bold text-brand-secondary flex items-center justify-end gap-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-brand-secondary animate-pulse"></span>
-                                        OPERATIONAL
-                                    </span>
-                                ) : (
-                                    <span className="text-xs font-bold text-amber-400 flex items-center justify-end gap-2">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce"></span>
-                                        CONNECTING
-                                    </span>
-                                )}
-                            </div>
-                            
-                            <button
-                                onClick={() => { authService.logout(); navigate('/login'); }}
-                                className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/5 text-white hover:bg-white/10 hover:border-white/10 transition-all text-xs font-bold uppercase tracking-widest"
-                            >
-                                Sign Out
-                            </button>
+            <main className="max-w-7xl mx-auto px-6 lg:px-8 py-12 relative z-10 space-y-8">
+                <header className="flex justify-between items-center mb-12">
+                     <div className="flex flex-col">
+                        <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">Live Console</span>
+                        <h1 className="text-4xl font-black text-white tracking-tighter">System <span className="text-brand-primary">Overview</span></h1>
+                    </div>
+
+                    <div className="flex items-center gap-6">
+                        <div className="flex flex-col text-right">
+                            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Connection Status</span>
+                            {isConnected ? (
+                                <span className="text-xs font-bold text-brand-secondary flex items-center justify-end gap-2 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-brand-secondary animate-pulse"></span>
+                                    ONLINE
+                                </span>
+                            ) : (
+                                <span className="text-xs font-bold text-amber-400 flex items-center justify-end gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-bounce"></span>
+                                    RECONNECTING
+                                </span>
+                            )}
                         </div>
                     </div>
-                </div>
-            </nav>
+                </header>
 
-            <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10 space-y-8 relative z-10">
-                
                 {/* System Info Header */}
                 <div className="glass-panel rounded-4xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 border-glow">
+
                     <div className="flex items-center gap-6">
                         <div className="w-16 h-16 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center border border-brand-primary/20 shadow-[0_0_20px_rgba(139,92,246,0.1)]">
                             <Server size={32} strokeWidth={1.5} />

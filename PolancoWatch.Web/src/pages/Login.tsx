@@ -25,44 +25,50 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0b0f19] p-4 text-slate-900 dark:text-slate-100">
-            <div className="glass-panel w-full max-w-md p-8 rounded-2xl animate-fade-in shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-brand-400 to-brand-600"></div>
+        <div className="min-h-screen flex items-center justify-center bg-obsidian-950 p-4 text-slate-300 selection:bg-brand-primary/30">
+            {/* Background Texture Overlay */}
+            <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-0" 
+                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
+            </div>
+
+            <div className="glass-panel w-full max-w-md p-10 rounded-[2.5rem] shadow-2xl relative z-10 animate-fade-in">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-linear-to-r from-brand-primary to-brand-secondary opacity-50"></div>
                 
-                <div className="flex flex-col items-center mb-8">
-                    <div className="w-16 h-16 rounded-xl bg-linear-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold text-3xl shadow-lg shadow-brand-500/30 mb-4">
-                        P
+                <div className="flex flex-col items-center mb-10">
+                    <div className="w-16 h-16 rounded-2xl bg-obsidian-800 border border-white/10 flex items-center justify-center text-brand-primary font-black text-3xl shadow-2xl relative group mb-6">
+                        <div className="absolute inset-0 bg-linear-to-br from-brand-primary/20 to-brand-secondary/20 animate-pulse-slow rounded-2xl"></div>
+                        <span className="relative z-10 tracking-tighter italic">P</span>
                     </div>
-                    <h1 className="text-2xl font-bold tracking-tight">PolancoWatch</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in to your dashboard</p>
+                    <h1 className="text-3xl font-black text-white tracking-tighter uppercase italic">Polanco<span className="text-brand-secondary">Watch</span></h1>
+                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mt-3">Auth_Level_0: Identity_Check</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-6">
                     {error && (
-                        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 text-sm text-center font-medium">
+                        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-black uppercase text-center animate-fade-in">
                             {error}
                         </div>
                     )}
                     
                     <div>
-                        <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">Username</label>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Identity_Handle</label>
                         <input
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-900/50 focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 outline-none transition-all dark:text-white"
-                            placeholder="admin"
+                            className="w-full px-6 py-4 rounded-2xl border border-white/5 bg-obsidian-900/60 text-white text-sm font-black focus:border-brand-primary/50 focus:ring-4 focus:ring-brand-primary/5 outline-none transition-all placeholder:text-slate-700 uppercase tracking-widest"
+                            placeholder="ADMIN_USER"
                             required
                         />
                     </div>
                     
                     <div>
-                        <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">Password</label>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Security_Key</label>
                         <input
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-900/50 focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 outline-none transition-all dark:text-white"
+                            className="w-full px-6 py-4 rounded-2xl border border-white/5 bg-obsidian-900/60 text-white text-sm focus:border-brand-secondary/50 focus:ring-4 focus:ring-brand-secondary/5 outline-none transition-all placeholder:text-slate-700 font-mono"
                             placeholder="••••••••"
                             required
                         />
@@ -71,12 +77,17 @@ export default function Login() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full py-2.5 px-4 rounded-xl bg-linear-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-semibold shadow-lg shadow-brand-500/30 transition-all disabled:opacity-70 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+                        className="w-full py-5 px-6 rounded-2xl bg-brand-primary text-white text-xs font-black uppercase tracking-[0.2em] shadow-xl shadow-brand-primary/20 hover:bg-violet-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                     >
-                        {loading ? 'Authenticating...' : 'Sign In'}
+                        {loading ? 'ESTABLISHING_LINK...' : 'INITIALIZE_SESSION'}
                     </button>
+
+                    <p className="text-[8px] text-slate-600 text-center uppercase font-black tracking-[0.4em] pt-4 mt-4 border-t border-white/5 italic">
+                        PolancoWatch CORE_V1 // Restricted Access
+                    </p>
                 </form>
             </div>
         </div>
     );
+
 }

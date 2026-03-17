@@ -11,3 +11,12 @@ public class AuthResponse
     public string Token { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
 }
+
+public class UpdateProfileRequest
+{
+    public string? NewUsername { get; set; }
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string? NewPassword { get; set; }
+}
+
+
