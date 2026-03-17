@@ -8,12 +8,12 @@ services:
     container_name: polancowatch-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_URLS=http://+:80
       - ConnectionStrings__DefaultConnection=Data Source=/app/data/polancowatch.db
     volumes:
       - polancowatch_data:/app/data
     ports:
-      - "5246:8080"
+      - "80:80"
     restart: always
 
   web:

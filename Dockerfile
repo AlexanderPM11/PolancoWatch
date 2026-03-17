@@ -24,8 +24,7 @@ RUN dotnet publish "PolancoWatch.API.csproj" -c Release -o /app/publish /p:UseAp
 # Runtime Stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
-EXPOSE 8080
-EXPOSE 5246
+EXPOSE 80
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data && chown -R lw:lw /app/data || true
