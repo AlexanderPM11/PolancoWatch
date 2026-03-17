@@ -26,6 +26,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 EXPOSE 80
 
+# Install procps for process metrics (ps -eo)
+RUN apt-get update && apt-get install -y procps && rm -rf /var/lib/apt/lists/*
+
 # Create data directory for SQLite
 RUN mkdir -p /app/data && chown -R lw:lw /app/data || true
 
