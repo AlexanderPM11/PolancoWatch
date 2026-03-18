@@ -21,6 +21,9 @@ public class SystemMetricsCollector : IMetricsCollector
     private PerformanceCounter? _winCpuCounter;
     private PerformanceCounter? _winMemCounter;
 
+    // Static Cache
+    private static SystemInfoMetrics? _cachedSystemInfo;
+
     public SystemMetricsCollector(ILogger<SystemMetricsCollector> logger, IDockerClient? dockerClient)
     {
         _logger = logger;
@@ -41,28 +44,30 @@ public class SystemMetricsCollector : IMetricsCollector
     public async Task<ServerMetricsSnapshot> CollectMetricsAsync()
     {
         var snapshot = new ServerMetricsSnapshot();
+        var tasks = new List<Task>();
 
         if (OperatingSystem.IsLinux())
         {
-            await ParseCpuLinuxAsync(snapshot.Cpu);
-            await ParseMemoryLinuxAsync(snapshot.Memory);
-            await ParseNetworkLinuxAsync(snapshot.Networks);
-            await ParseSystemInfoLinuxAsync(snapshot.SystemInfo);
-            await ParseDiskAsync(snapshot.Disks);
-            await ParseProcessesLinuxAsync(snapshot.TopProcesses);
+            tasks.Add(ParseCpuLinuxAsync(snapshot.Cpu));
+            tasks.Add(ParseMemoryLinuxAsync(snapshot.Memory));
+            tasks.Add(ParseNetworkLinuxAsync(snapshot.Networks));
+            tasks.Add(ParseSystemInfoLinuxAsync(snapshot.SystemInfo));
+            tasks.Add(ParseDiskAsync(snapshot.Disks));
+            tasks.Add(ParseProcessesLinuxAsync(snapshot.TopProcesses));
         }
         else if (OperatingSystem.IsWindows())
         {
-            await ParseCpuWindowsAsync(snapshot.Cpu);
-            await ParseMemoryWindowsAsync(snapshot.Memory);
-            await ParseNetworkWindowsAsync(snapshot.Networks);
-            await ParseSystemInfoWindowsAsync(snapshot.SystemInfo);
-            await ParseDiskAsync(snapshot.Disks);
-            await ParseProcessesWindowsAsync(snapshot.TopProcesses);
+            tasks.Add(ParseCpuWindowsAsync(snapshot.Cpu));
+            tasks.Add(ParseMemoryWindowsAsync(snapshot.Memory));
+            tasks.Add(ParseNetworkWindowsAsync(snapshot.Networks));
+            tasks.Add(ParseSystemInfoWindowsAsync(snapshot.SystemInfo));
+            tasks.Add(ParseDiskAsync(snapshot.Disks));
+            tasks.Add(ParseProcessesWindowsAsync(snapshot.TopProcesses));
         }
 
-        // Always try Docker if possible
-        await ParseDockerAsync(snapshot);
+        tasks.Add(ParseDockerAsync(snapshot));
+
+        await Task.WhenAll(tasks);
 
         return snapshot;
     }
@@ -155,9 +160,24 @@ public class SystemMetricsCollector : IMetricsCollector
 
     private async Task ParseSystemInfoWindowsAsync(SystemInfoMetrics metric)
     {
-        metric.Hostname = Environment.MachineName;
-        metric.OsVersion = RuntimeInformation.OSDescription;
-        metric.KernelVersion = Environment.OSVersion.VersionString;
+        if (_cachedSystemInfo != null)
+        {
+             metric.Hostname = _cachedSystemInfo.Hostname;
+             metric.OsVersion = _cachedSystemInfo.OsVersion;
+             metric.KernelVersion = _cachedSystemInfo.KernelVersion;
+        }
+        else
+        {
+            metric.Hostname = Environment.MachineName;
+            metric.OsVersion = RuntimeInformation.OSDescription;
+            metric.KernelVersion = Environment.OSVersion.VersionString;
+            _cachedSystemInfo = new SystemInfoMetrics { 
+                Hostname = metric.Hostname, 
+                OsVersion = metric.OsVersion, 
+                KernelVersion = metric.KernelVersion 
+            };
+        }
+
         metric.Uptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
         await Task.CompletedTask;
     }
@@ -326,14 +346,29 @@ public class SystemMetricsCollector : IMetricsCollector
     
     private async Task ParseSystemInfoLinuxAsync(SystemInfoMetrics metric)
     {
-        if (File.Exists("/proc/sys/kernel/hostname")) metric.Hostname = (await File.ReadAllTextAsync("/proc/sys/kernel/hostname")).Trim();
-        if (File.Exists("/proc/version")) metric.KernelVersion = (await File.ReadAllTextAsync("/proc/version")).Split(' ')[2];
-        if (File.Exists("/etc/os-release"))
+        if (_cachedSystemInfo != null)
         {
-            var lines = await File.ReadAllLinesAsync("/etc/os-release");
-            var prettyNameLine = lines.FirstOrDefault(l => l.StartsWith("PRETTY_NAME="));
-            if (prettyNameLine != null) metric.OsVersion = prettyNameLine.Split('=')[1].Trim('"');
+            metric.Hostname = _cachedSystemInfo.Hostname;
+            metric.OsVersion = _cachedSystemInfo.OsVersion;
+            metric.KernelVersion = _cachedSystemInfo.KernelVersion;
         }
+        else
+        {
+            if (File.Exists("/proc/sys/kernel/hostname")) metric.Hostname = (await File.ReadAllTextAsync("/proc/sys/kernel/hostname")).Trim();
+            if (File.Exists("/proc/version")) metric.KernelVersion = (await File.ReadAllTextAsync("/proc/version")).Split(' ')[2];
+            if (File.Exists("/etc/os-release"))
+            {
+                var lines = await File.ReadAllLinesAsync("/etc/os-release");
+                var prettyNameLine = lines.FirstOrDefault(l => l.StartsWith("PRETTY_NAME="));
+                if (prettyNameLine != null) metric.OsVersion = prettyNameLine.Split('=')[1].Trim('"');
+            }
+            _cachedSystemInfo = new SystemInfoMetrics { 
+                Hostname = metric.Hostname, 
+                OsVersion = metric.OsVersion, 
+                KernelVersion = metric.KernelVersion 
+            };
+        }
+
         if (File.Exists("/proc/uptime"))
         {
             var uptimeText = await File.ReadAllTextAsync("/proc/uptime");
@@ -441,8 +476,7 @@ public class SystemMetricsCollector : IMetricsCollector
             var containers = await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters { All = true });
             var dockerContainers = snapshot.DockerContainers;
             
-            foreach (var c in containers)
-            {
+            var containerStatsTasks = containers.Select(async c => {
                 var container = new DockerContainerMetrics
                 {
                     ContainerId = c.ID.Length >= 12 ? c.ID.Substring(0, 12) : c.ID,
@@ -451,7 +485,6 @@ public class SystemMetricsCollector : IMetricsCollector
                     Status = c.Status,
                     State = c.State
                 };
-                dockerContainers.Add(container);
 
                 // Try to get stats if running
                 if (c.State == "running")
@@ -494,11 +527,11 @@ public class SystemMetricsCollector : IMetricsCollector
                                 container.MemoryUsageBytes = memUsage;
 
                                 // Net I/O
-                                var networks = stats["networks"];
-                                if (networks != null)
+                                var netStats = stats["networks"];
+                                if (netStats != null)
                                 {
                                     long rx = 0, tx = 0;
-                                    foreach (var net in networks.AsObject())
+                                    foreach (var net in netStats.AsObject())
                                     {
                                         rx += net.Value?["rx_bytes"]?.GetValue<long>() ?? 0;
                                         tx += net.Value?["tx_bytes"]?.GetValue<long>() ?? 0;
@@ -510,22 +543,26 @@ public class SystemMetricsCollector : IMetricsCollector
                                 var blockIo = stats["blkio_stats"]?["io_service_bytes_recursive"];
                                 if (blockIo != null)
                                 {
-                                    long read = 0, write = 0;
+                                    long bread = 0, bwrite = 0;
                                     foreach (var item in blockIo.AsArray())
                                     {
                                         var op = item?["op"]?.GetValue<string>()?.ToLower();
                                         var val = item?["value"]?.GetValue<long>() ?? 0;
-                                        if (op == "read") read += val;
-                                        else if (op == "write") write += val;
+                                        if (op == "read") bread += val;
+                                        else if (op == "write") bwrite += val;
                                     }
-                                    container.BlockIO = $"{FormatBytes(read)} / {FormatBytes(write)}";
+                                    container.BlockIO = $"{FormatBytes(bread)} / {FormatBytes(bwrite)}";
                                 }
                             }
                         }
                     }
                     catch { /* Skip specific container errors */ }
                 }
-            }
+                return container;
+            });
+
+            var results = await Task.WhenAll(containerStatsTasks);
+            dockerContainers.AddRange(results);
 
             // 2. Global Stats
             snapshot.DockerStats.TotalContainers = dockerContainers.Count;
