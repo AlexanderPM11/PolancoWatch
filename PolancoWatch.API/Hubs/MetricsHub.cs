@@ -10,6 +10,7 @@ public class MetricsHub : Hub<IMetricsClient>
         // TODO: Log or authenticate connections
         await base.OnConnectedAsync();
     }
+    
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
