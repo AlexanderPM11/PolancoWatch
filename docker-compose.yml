@@ -21,6 +21,9 @@ services:
     
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./data:/app/data
+      - polancowatch_db_data:/app/data
     
     restart: unless-stopped
+
+volumes:
+  polancowatch_db_data:

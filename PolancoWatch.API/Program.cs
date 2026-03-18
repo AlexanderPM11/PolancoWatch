@@ -89,7 +89,7 @@ if (connectionString != null && connectionString.Contains("Data Source="))
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    context.Database.EnsureCreated(); // Or Migrate() if using migrations
+    context.Database.Migrate(); // Ensures migrations are applied
 
     if (!context.Users.Any())
     {
