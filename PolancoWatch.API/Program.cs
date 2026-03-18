@@ -102,5 +102,6 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 
 app.MapControllers();
 app.MapHub<MetricsHub>("/metricshub");
+app.MapHub<LogsHub>("/logshub");
 
 app.Run();
