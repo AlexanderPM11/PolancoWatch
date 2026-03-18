@@ -73,6 +73,18 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Ensure Data Directory exists for SQLite
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (connectionString != null && connectionString.Contains("Data Source="))
+{
+    var dbPath = connectionString.Replace("Data Source=", "");
+    var directory = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+    {
+        Directory.CreateDirectory(directory);
+    }
+}
+
 // Seed Database
 using (var scope = app.Services.CreateScope())
 {
