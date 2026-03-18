@@ -46,6 +46,7 @@ public class SystemMetricsCollector : IMetricsCollector
             await ParseSystemInfoLinuxAsync(snapshot.SystemInfo);
             await ParseDiskAsync(snapshot.Disks);
             await ParseProcessesLinuxAsync(snapshot.TopProcesses);
+            await ParseDockerLinuxAsync(snapshot.DockerContainers);
         }
         else if (OperatingSystem.IsWindows())
         {
@@ -422,6 +423,122 @@ public class SystemMetricsCollector : IMetricsCollector
         {
             _logger.LogError(ex, "Failed to parse Linux processes via 'ps' command.");
         }
+    }
+
+    private async Task ParseDockerLinuxAsync(List<DockerContainerMetrics> dockerContainers)
+    {
+        try
+        {
+            // 1. Get basic info (ID, Name, Image, Status, State)
+            var psPsi = new ProcessStartInfo
+            {
+                FileName = "docker",
+                Arguments = "ps --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.State}}\"",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var psProcess = Process.Start(psPsi);
+            if (psProcess == null) return;
+
+            string psOutput = await psProcess.StandardOutput.ReadToEndAsync();
+            await psProcess.WaitForExitAsync();
+
+            var lines = psOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var containerMap = new Dictionary<string, DockerContainerMetrics>();
+
+            foreach (var line in lines)
+            {
+                var parts = line.Split('|');
+                if (parts.Length >= 5)
+                {
+                    var container = new DockerContainerMetrics
+                    {
+                        ContainerId = parts[0],
+                        Name = parts[1],
+                        Image = parts[2],
+                        Status = parts[3],
+                        State = parts[4]
+                    };
+                    containerMap[container.ContainerId] = container;
+                    dockerContainers.Add(container);
+                }
+            }
+
+            if (!containerMap.Any()) return;
+
+            // 2. Get resource usage (CPU, Memory)
+            var statsPsi = new ProcessStartInfo
+            {
+                FileName = "docker",
+                Arguments = "stats --no-stream --format \"{{.ID}}|{{.CPUPerc}}|{{.MemUsage}}\"",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var statsProcess = Process.Start(statsPsi);
+            if (statsProcess == null) return;
+
+            string statsOutput = await statsProcess.StandardOutput.ReadToEndAsync();
+            await statsProcess.WaitForExitAsync();
+
+            var statsLines = statsOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in statsLines)
+            {
+                var parts = line.Split('|');
+                if (parts.Length >= 3)
+                {
+                    var id = parts[0];
+                    if (containerMap.TryGetValue(id, out var container))
+                    {
+                        // Parse CPU (e.g., "0.05%")
+                        if (double.TryParse(parts[1].Replace("%", "").Trim(), out double cpu))
+                        {
+                            container.CpuPercentage = cpu;
+                        }
+
+                        // Parse Memory (e.g., "1.2MiB / 7.6GiB")
+                        var memPart = parts[2].Split('/')[0].Trim();
+                        container.MemoryUsageBytes = ParseDockerMemory(memPart);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Failed to collect Docker metrics: {Message}", ex.Message);
+        }
+    }
+
+    private long ParseDockerMemory(string memString)
+    {
+        try
+        {
+            var parts = memString.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 1) return 0;
+
+            string valueStr = "";
+            string unit = "";
+
+            foreach (var c in parts[0])
+            {
+                if (char.IsDigit(c) || c == '.') valueStr += c;
+                else unit += c;
+            }
+
+            if (!double.TryParse(valueStr, out double value)) return 0;
+
+            unit = unit.ToUpper();
+            if (unit.Contains("G")) return (long)(value * 1024 * 1024 * 1024);
+            if (unit.Contains("M")) return (long)(value * 1024 * 1024);
+            if (unit.Contains("K")) return (long)(value * 1024);
+            if (unit.Contains("B")) return (long)value;
+
+            return (long)value;
+        }
+        catch { return 0; }
     }
 }
 #pragma warning restore CA1416

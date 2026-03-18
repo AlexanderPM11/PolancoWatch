@@ -39,6 +39,17 @@ public class ProcessMetrics
     public long MemoryUsageBytes { get; set; }
 }
 
+public class DockerContainerMetrics
+{
+    public string ContainerId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Image { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public double CpuPercentage { get; set; }
+    public long MemoryUsageBytes { get; set; }
+}
+
 public class SystemInfoMetrics
 {
     public string OsVersion { get; set; } = string.Empty;
@@ -55,5 +66,6 @@ public class ServerMetricsSnapshot
     public List<DiskMetrics> Disks { get; set; } = new();
     public List<NetworkMetrics> Networks { get; set; } = new();
     public List<ProcessMetrics> TopProcesses { get; set; } = new();
+    public List<DockerContainerMetrics> DockerContainers { get; set; } = new();
     public SystemInfoMetrics SystemInfo { get; set; } = new();
 }
