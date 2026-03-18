@@ -50,6 +50,8 @@ public class SettingsController : ControllerBase
             existing.SmtpEnableSsl = settings.SmtpEnableSsl;
             existing.SmtpUser = settings.SmtpUser;
             existing.SmtpPass = settings.SmtpPass;
+            existing.TelegramMessageTemplate = settings.TelegramMessageTemplate;
+            existing.EmailMessageTemplate = settings.EmailMessageTemplate;
             existing.FromEmail = settings.FromEmail;
             existing.ToEmail = settings.ToEmail;
         }

@@ -67,4 +67,12 @@ public class AlertsController : ControllerBase
         
         return Ok(history);
     }
+    [HttpDelete("history")]
+    public async Task<IActionResult> DeleteHistory()
+    {
+        var history = await _context.AlertHistories.ToListAsync();
+        _context.AlertHistories.RemoveRange(history);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
 }
