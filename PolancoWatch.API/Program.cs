@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PolancoWatch.Infrastructure.Data;
 using PolancoWatch.Domain.Entities;
+using Docker.DotNet;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +32,14 @@ builder.Services.AddSingleton<AlertEvaluatorHostedService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<AlertEvaluatorHostedService>());
 builder.Services.AddHostedService<SystemMetricsHostedService>();
 builder.Services.AddSignalR();
+
+// Configure Docker Client (Singleton)
+builder.Services.AddSingleton<IDockerClient>(sp => {
+    var dockerUri = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
+        ? "npipe://./pipe/docker_engine" 
+        : "unix:///var/run/docker.sock";
+    return new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+});
 // Configure JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "super_secret_key_change_me_in_production_so_its_secure_enough_for_sha256";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

@@ -1,5 +1,6 @@
+using Docker.DotNet;
+using Docker.DotNet.Models;
 using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics;
 
 namespace PolancoWatch.API.Controllers;
 
@@ -8,10 +9,12 @@ namespace PolancoWatch.API.Controllers;
 public class DockerController : ControllerBase
 {
     private readonly ILogger<DockerController> _logger;
+    private readonly IDockerClient _dockerClient;
 
-    public DockerController(ILogger<DockerController> logger)
+    public DockerController(ILogger<DockerController> logger, IDockerClient dockerClient)
     {
         _logger = logger;
+        _dockerClient = dockerClient;
     }
 
     [HttpPost("container/{id}/start")]
@@ -36,25 +39,19 @@ public class DockerController : ControllerBase
     {
         try
         {
-            var psi = new ProcessStartInfo
+            switch (command.ToLower())
             {
-                FileName = "docker",
-                Arguments = $"{command} {id}",
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return BadRequest("Could not start docker process");
-
-            string error = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            if (process.ExitCode != 0)
-            {
-                _logger.LogError("Docker {Command} failed for {Id}: {Error}", command, id, error);
-                return BadRequest(new { message = error });
+                case "start":
+                    await _dockerClient.Containers.StartContainerAsync(id, new ContainerStartParameters());
+                    break;
+                case "stop":
+                    await _dockerClient.Containers.StopContainerAsync(id, new ContainerStopParameters());
+                    break;
+                case "restart":
+                    await _dockerClient.Containers.RestartContainerAsync(id, new ContainerRestartParameters());
+                    break;
+                default:
+                    return BadRequest($"Unknown command: {command}");
             }
 
             return Ok(new { message = $"Container {id} {command}ed successfully" });

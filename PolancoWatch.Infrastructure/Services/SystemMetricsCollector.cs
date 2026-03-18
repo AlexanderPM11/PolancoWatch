@@ -1,14 +1,14 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
 using PolancoWatch.Application.Interfaces;
 using PolancoWatch.Domain.Models;
-
-namespace PolancoWatch.Infrastructure.Services;
-
+using Docker.DotNet;
+using Docker.DotNet.Models;
 using System.Management;
 
-using Microsoft.Extensions.Logging;
+namespace PolancoWatch.Infrastructure.Services;
 
 #pragma warning disable CA1416
 public class SystemMetricsCollector : IMetricsCollector
@@ -17,12 +17,15 @@ public class SystemMetricsCollector : IMetricsCollector
     private ulong _previousIdleTime;
 
     private readonly ILogger<SystemMetricsCollector> _logger;
+    private readonly IDockerClient? _dockerClient;
     private PerformanceCounter? _winCpuCounter;
     private PerformanceCounter? _winMemCounter;
 
-    public SystemMetricsCollector(ILogger<SystemMetricsCollector> logger)
+    public SystemMetricsCollector(ILogger<SystemMetricsCollector> logger, IDockerClient? dockerClient)
     {
         _logger = logger;
+        _dockerClient = dockerClient;
+
         if (OperatingSystem.IsWindows())
         {
             try {
@@ -33,6 +36,7 @@ public class SystemMetricsCollector : IMetricsCollector
             } catch (Exception) { }
         }
     }
+
 
     public async Task<ServerMetricsSnapshot> CollectMetricsAsync()
     {
@@ -429,169 +433,124 @@ public class SystemMetricsCollector : IMetricsCollector
 
     private async Task ParseDockerAsync(ServerMetricsSnapshot snapshot)
     {
-        var dockerContainers = snapshot.DockerContainers;
+        if (_dockerClient == null) return;
+
         try
         {
-            // 1. Get basic info (ID, Name, Image, Status, State) - Added -a for all containers
-            var psPsi = new ProcessStartInfo
+            // 1. Get Containers
+            var containers = await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters { All = true });
+            var dockerContainers = snapshot.DockerContainers;
+            
+            foreach (var c in containers)
             {
-                FileName = "docker",
-                Arguments = "ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.State}}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true, // Capture errors
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var psProcess = Process.Start(psPsi);
-            if (psProcess == null) return;
-
-            string psOutput = await psProcess.StandardOutput.ReadToEndAsync();
-            string psError = await psProcess.StandardError.ReadToEndAsync();
-            await psProcess.WaitForExitAsync();
-
-            if (string.IsNullOrWhiteSpace(psOutput))
-            {
-                return;
-            }
-
-            var lines = psOutput.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-            var containerMap = new Dictionary<string, DockerContainerMetrics>();
-
-            _logger.LogInformation("Docker ps found {Count} lines.", lines.Length);
-
-            foreach (var line in lines)
-            {
-                var parts = line.Split('|');
-                if (parts.Length >= 5)
+                var container = new DockerContainerMetrics
                 {
-                    var container = new DockerContainerMetrics
+                    ContainerId = c.ID.Length >= 12 ? c.ID.Substring(0, 12) : c.ID,
+                    Name = c.Names.FirstOrDefault()?.TrimStart('/') ?? "unknown",
+                    Image = c.Image,
+                    Status = c.Status,
+                    State = c.State
+                };
+                dockerContainers.Add(container);
+
+                // Try to get stats if running
+                if (c.State == "running")
+                {
+                    try
                     {
-                        ContainerId = parts[0],
-                        Name = parts[1],
-                        Image = parts[2],
-                        Status = parts[3],
-                        State = parts[4]
-                    };
-                    containerMap[container.ContainerId] = container;
-                    dockerContainers.Add(container);
+#pragma warning disable CS0618
+                        using var statsStream = await _dockerClient!.Containers.GetContainerStatsAsync(c.ID, new ContainerStatsParameters { Stream = false }, CancellationToken.None);
+#pragma warning restore CS0618
+                        using var reader = new System.IO.StreamReader(statsStream);
+                        var json = await reader.ReadToEndAsync();
+                        
+                        if (!string.IsNullOrEmpty(json))
+                        {
+                            var stats = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonNode>(json);
+                            if (stats != null)
+                            {
+                                // CPU Calculation
+                                var cpuStats = stats["cpu_stats"];
+                                var precpuStats = stats["precpu_stats"];
+                                if (cpuStats != null && precpuStats != null)
+                                {
+                                    var cpuTotal = (double)(cpuStats["cpu_usage"]?["total_usage"]?.GetValue<long>() ?? 0);
+                                    var precpuTotal = (double)(precpuStats["cpu_usage"]?["total_usage"]?.GetValue<long>() ?? 0);
+                                    var systemCpu = (double)(cpuStats["system_cpu_usage"]?.GetValue<long>() ?? 0);
+                                    var presystemCpu = (double)(precpuStats["system_cpu_usage"]?.GetValue<long>() ?? 0);
+                                    
+                                    var cpuDelta = cpuTotal - precpuTotal;
+                                    var systemDelta = systemCpu - presystemCpu;
+                                    
+                                    if (systemDelta > 0 && cpuDelta > 0)
+                                    {
+                                        var cpuPercent = (cpuDelta / systemDelta) * (double)(cpuStats["online_cpus"]?.GetValue<int>() ?? 1) * 100.0;
+                                        container.CpuPercentage = Math.Round(cpuPercent, 2);
+                                    }
+                                }
+
+                                // Memory
+                                var memUsage = stats["memory_stats"]?["usage"]?.GetValue<long>() ?? 0;
+                                container.MemoryUsageBytes = memUsage;
+
+                                // Net I/O
+                                var networks = stats["networks"];
+                                if (networks != null)
+                                {
+                                    long rx = 0, tx = 0;
+                                    foreach (var net in networks.AsObject())
+                                    {
+                                        rx += net.Value?["rx_bytes"]?.GetValue<long>() ?? 0;
+                                        tx += net.Value?["tx_bytes"]?.GetValue<long>() ?? 0;
+                                    }
+                                    container.NetworkIO = $"{FormatBytes(rx)} / {FormatBytes(tx)}";
+                                }
+
+                                // Block I/O
+                                var blockIo = stats["blkio_stats"]?["io_service_bytes_recursive"];
+                                if (blockIo != null)
+                                {
+                                    long read = 0, write = 0;
+                                    foreach (var item in blockIo.AsArray())
+                                    {
+                                        var op = item?["op"]?.GetValue<string>()?.ToLower();
+                                        var val = item?["value"]?.GetValue<long>() ?? 0;
+                                        if (op == "read") read += val;
+                                        else if (op == "write") write += val;
+                                    }
+                                    container.BlockIO = $"{FormatBytes(read)} / {FormatBytes(write)}";
+                                }
+                            }
+                        }
+                    }
+                    catch { /* Skip specific container errors */ }
                 }
             }
 
-            _logger.LogInformation("Parsed {Count} Docker containers.", dockerContainers.Count);
-
-            // 2. Get Global Stats
+            // 2. Global Stats
             snapshot.DockerStats.TotalContainers = dockerContainers.Count;
             snapshot.DockerStats.RunningContainers = dockerContainers.Count(c => c.State == "running");
             snapshot.DockerStats.StoppedContainers = dockerContainers.Count(c => c.State == "exited" || c.State == "created");
-
-            await FetchImageCountAsync(snapshot.DockerStats);
-
-            if (!containerMap.Any()) return;
-
-            // 3. Get resource usage (CPU, Memory, Net, Block)
-            var statsPsi = new ProcessStartInfo
-            {
-                FileName = "docker",
-                Arguments = "stats --no-stream --format \"{{.ID}}|{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.BlockIO}}\"",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var statsProcess = Process.Start(statsPsi);
-            if (statsProcess == null) return;
-
-            string statsOutput = await statsProcess.StandardOutput.ReadToEndAsync();
-            await statsProcess.WaitForExitAsync();
-
-            var statsLines = statsOutput.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var line in statsLines)
-            {
-                var parts = line.Split('|');
-                if (parts.Length >= 5)
-                {
-                    var id = parts[0];
-                    if (containerMap.TryGetValue(id, out var container))
-                    {
-                        // Parse CPU (e.g., "0.05%")
-                        if (double.TryParse(parts[1].Replace("%", "").Trim(), out double cpu))
-                        {
-                            container.CpuPercentage = cpu;
-                        }
-
-                        // Parse Memory (e.g., "1.2MiB / 7.6GiB")
-                        var memPart = parts[2].Split('/')[0].Trim();
-                        container.MemoryUsageBytes = ParseDockerMemory(memPart);
-
-                        // New Metrics
-                        container.NetworkIO = parts[3].Trim();
-                        container.BlockIO = parts[4].Trim();
-                    }
-                }
-            }
+            
+            var images = await _dockerClient.Images.ListImagesAsync(new ImagesListParameters());
+            snapshot.DockerStats.TotalImages = images.Count;
         }
-        catch
+        catch (Exception ex)
         {
-            // Silent fail if docker is not installed or socket not accessible
+            _logger.LogDebug("Docker collection skipped: {Message}", ex.Message);
         }
     }
 
-    private async Task FetchImageCountAsync(DockerStats stats)
+    private string FormatBytes(long bytes)
     {
-        try
+        string[] Suffix = { "B", "KB", "MB", "GB", "TB" };
+        int i;
+        double dblSByte = bytes;
+        for (i = 0; i < Suffix.Length && bytes >= 1024; i++, bytes /= 1024)
         {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "docker",
-                Arguments = "images -q",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return;
-
-            string output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            var images = output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-            stats.TotalImages = images.Length;
+            dblSByte = bytes / 1024.0;
         }
-        catch
-        {
-            // Silently fail for global stats
-        }
-    }
-
-    private long ParseDockerMemory(string memString)
-    {
-        try
-        {
-            var parts = memString.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length < 1) return 0;
-
-            string valueStr = "";
-            string unit = "";
-
-            foreach (var c in parts[0])
-            {
-                if (char.IsDigit(c) || c == '.') valueStr += c;
-                else unit += c;
-            }
-
-            if (!double.TryParse(valueStr, out double value)) return 0;
-
-            unit = unit.ToUpper();
-            if (unit.Contains("G")) return (long)(value * 1024 * 1024 * 1024);
-            if (unit.Contains("M")) return (long)(value * 1024 * 1024);
-            if (unit.Contains("K")) return (long)(value * 1024);
-            if (unit.Contains("B")) return (long)value;
-
-            return (long)value;
-        }
-        catch { return 0; }
+        return string.Format("{0:0.##}{1}", dblSByte, Suffix[i]);
     }
 }
 #pragma warning restore CA1416
