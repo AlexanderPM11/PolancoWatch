@@ -13,8 +13,8 @@ namespace PolancoWatch.Infrastructure.Services;
 #pragma warning disable CA1416
 public class SystemMetricsCollector : IMetricsCollector
 {
-    private ulong _previousTotalTime;
-    private ulong _previousIdleTime;
+    // CPU Tick Persistence (Linux)
+    private Dictionary<string, (ulong Total, ulong Idle)> _prevLinuxCpuTimes = new();
 
     private readonly ILogger<SystemMetricsCollector> _logger;
     private readonly IDockerClient? _dockerClient;
@@ -300,32 +300,74 @@ public class SystemMetricsCollector : IMetricsCollector
 
     private async Task ParseCpuLinuxAsync(CpuMetrics metric)
     {
+        if (!File.Exists("/proc/stat")) return;
+
         string[] statLines = await File.ReadAllLinesAsync("/proc/stat");
         
-        // Total CPU (first line)
-        string totalLine = statLines[0];
-        UpdateCpuMetricFromLine(totalLine, metric, true);
-
-        // Individual Cores (cpu0, cpu1, ...)
+        // Clear core usage to rebuild it
         metric.CoreUsagePercentages.Clear();
-        foreach (var line in statLines.Skip(1).Where(l => l.StartsWith("cpu") && char.IsDigit(l[3])))
+
+        foreach (var line in statLines)
         {
-            // For now, we reuse the same logic, but we'd need to track previous values per core
-            // Simplified: Just use the total for now or implement per-core tracking
-            // To be truly accurate, we need a Dictionary<string, (ulong Total, ulong Idle)> _prevCoreTimes
-            metric.CoreUsagePercentages.Add(metric.TotalUsagePercentage); // Placeholder for now
+            if (line.StartsWith("cpu"))
+            {
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 5) continue;
+
+                string cpuId = parts[0];
+                ulong currentTotalTime = 0;
+                // Sum all columns except the first one (cpuId)
+                for (int i = 1; i < parts.Length; i++) 
+                {
+                    if (ulong.TryParse(parts[i], out ulong val)) currentTotalTime += val;
+                }
+                
+                // Idle is the 4th numeric column (index 4 in the split parts)
+                if (!ulong.TryParse(parts[4], out ulong currentIdleTime)) continue;
+
+                if (_prevLinuxCpuTimes.TryGetValue(cpuId, out var prev))
+                {
+                    ulong totalDelta = currentTotalTime - prev.Total;
+                    ulong idleDelta = currentIdleTime - prev.Idle;
+
+                    if (totalDelta > 0)
+                    {
+                        double usage = Math.Round(100.0 * (1.0 - ((double)idleDelta / totalDelta)), 2);
+                        usage = Math.Clamp(usage, 0, 100);
+
+                        if (cpuId == "cpu")
+                        {
+                            metric.TotalUsagePercentage = usage;
+                        }
+                        else
+                        {
+                            metric.CoreUsagePercentages.Add(usage);
+                        }
+                    }
+                }
+
+                // Update persistence
+                _prevLinuxCpuTimes[cpuId] = (currentTotalTime, currentIdleTime);
+            }
+            else if (!line.StartsWith("cpu") && metric.TotalUsagePercentage > 0)
+            {
+                // Optimization: stop if we passed the cpu section
+                break;
+            }
         }
-    }
-
-    private void UpdateCpuMetricFromLine(string line, CpuMetrics metric, bool isTotal)
-    {
-        string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        ulong currentTotalTime = 0;
-        for (int i = 1; i < parts.Length; i++) currentTotalTime += ulong.Parse(parts[i]);
-        ulong currentIdleTime = ulong.Parse(parts[4]);
-
-        // Logic here would need the _previousTotalTime but per-core if we want full accuracy
-        // For simplicity in this iteration, we focus on Total usage and showing core count
+        
+        // Also get Load Average from /proc/loadavg
+        if (File.Exists("/proc/loadavg"))
+        {
+            try {
+                var loadAvgText = (await File.ReadAllTextAsync("/proc/loadavg")).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (loadAvgText.Length >= 3) {
+                    metric.LoadAverage[0] = double.Parse(loadAvgText[0]);
+                    metric.LoadAverage[1] = double.Parse(loadAvgText[1]);
+                    metric.LoadAverage[2] = double.Parse(loadAvgText[2]);
+                }
+            } catch { }
+        }
     }
 
     private async Task ParseMemoryLinuxAsync(MemoryMetrics metric)

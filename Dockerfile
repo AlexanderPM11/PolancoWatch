@@ -30,7 +30,9 @@ EXPOSE 80
 RUN apt-get update && apt-get install -y procps && rm -rf /var/lib/apt/lists/*
 
 # Create data directory for SQLite
-RUN mkdir -p /app/data && chown -R lw:lw /app/data || true
+RUN mkdir -p /app/data
+# Use a non-root user if possible, but for metrics we might need root.
+# For now, ensure the data directory is accessible.
 
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "PolancoWatch.API.dll"]

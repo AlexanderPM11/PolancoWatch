@@ -1,0 +1,11 @@
+** /bin
+** /obj
+.git
+.gitignore
+.vs
+.vscode
+data
+PolancoWatch_backend/data
+Dockerfile
+docker-compose.yml
+README.md
