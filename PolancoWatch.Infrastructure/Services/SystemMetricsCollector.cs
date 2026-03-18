@@ -444,26 +444,14 @@ public class SystemMetricsCollector : IMetricsCollector
             };
 
             using var psProcess = Process.Start(psPsi);
-            if (psProcess == null) 
-            {
-                Console.WriteLine("DEBUG: Failed to start docker ps process (null)");
-                return;
-            }
+            if (psProcess == null) return;
 
             string psOutput = await psProcess.StandardOutput.ReadToEndAsync();
             string psError = await psProcess.StandardError.ReadToEndAsync();
             await psProcess.WaitForExitAsync();
 
-            if (!string.IsNullOrWhiteSpace(psError))
-            {
-                Console.WriteLine($"DEBUG: docker ps error: {psError}");
-            }
-
-            Console.WriteLine($"DEBUG: docker ps output length: {psOutput.Length}");
-
             if (string.IsNullOrWhiteSpace(psOutput))
             {
-                _logger.LogInformation("Docker ps returned no output.");
                 return;
             }
 
@@ -543,9 +531,9 @@ public class SystemMetricsCollector : IMetricsCollector
                 }
             }
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogWarning("Failed to collect Docker metrics: {Message}", ex.Message);
+            // Silent fail if docker is not installed or socket not accessible
         }
     }
 
