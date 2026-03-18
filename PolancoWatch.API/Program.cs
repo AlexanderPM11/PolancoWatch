@@ -26,8 +26,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IMetricsCollector, SystemMetricsCollector>();
 builder.Services.AddSingleton<IMetricsBroadcaster, SignalRMetricsBroadcaster>();
+builder.Services.AddHttpClient<TelegramAlertNotifier>();
 builder.Services.AddSingleton<IAlertNotifier, SignalRAlertNotifier>();
 builder.Services.AddSingleton<IAlertNotifier, ConsoleAlertNotifier>();
+builder.Services.AddSingleton<IAlertNotifier, TelegramAlertNotifier>();
+builder.Services.AddSingleton<IAlertNotifier, EmailAlertNotifier>();
 builder.Services.AddSingleton<AlertEvaluatorHostedService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<AlertEvaluatorHostedService>());
 builder.Services.AddHostedService<SystemMetricsHostedService>();
@@ -95,6 +98,13 @@ using (var scope = app.Services.CreateScope())
                 new AlertRule { MetricType = MetricType.Memory, Threshold = 85, IsActive = true },
                 new AlertRule { MetricType = MetricType.Disk, Threshold = 90, IsActive = true }
             });
+        }
+        
+        
+        // Seed default Notification Settings
+        if (!context.NotificationSettings.Any())
+        {
+            context.NotificationSettings.Add(new NotificationSettings());
         }
         
         context.SaveChanges();

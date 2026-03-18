@@ -14,7 +14,7 @@ public class SignalRAlertNotifier : IAlertNotifier
         _hubContext = hubContext;
     }
 
-    public async Task NotifyAsync(AlertRule rule, string message, double currentValue)
+    public async Task NotifyAsync(AlertRule rule, string message, double currentValue, NotificationSettings settings)
     {
         await _hubContext.Clients.All.ReceiveAlert(message);
     }

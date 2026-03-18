@@ -65,7 +65,19 @@ public class AlertEvaluatorHostedService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var activeRules = dbContext.AlertRules.Where(r => r.IsActive).ToList();
+        List<AlertRule> activeRules;
+        NotificationSettings settings;
+
+        try
+        {
+            activeRules = dbContext.AlertRules.Where(r => r.IsActive).ToList();
+            settings = dbContext.NotificationSettings.FirstOrDefault() ?? new NotificationSettings();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve alert rules or notification settings. The database schema might be out of date.");
+            return;
+        }
 
         foreach (var rule in activeRules)
         {
@@ -121,12 +133,11 @@ public class AlertEvaluatorHostedService : BackgroundService
                      Message = message
                  };
                  dbContext.AlertHistories.Add(history);
-                 
-                 // Broadcast using all Notifiers
-                 foreach(var notifier in _alertNotifiers)
-                 {
-                     await notifier.NotifyAsync(rule, message, currentValue);
-                 }
+                                  // Broadcast using all Notifiers
+                  foreach(var notifier in _alertNotifiers)
+                  {
+                      await notifier.NotifyAsync(rule, message, currentValue, settings);
+                  }
             }
         }
         

@@ -10,9 +10,10 @@ public class ApplicationDbContext : DbContext
     {
     }
 
-    public DbSet<User> Users { get; set; }
-    public DbSet<AlertRule> AlertRules { get; set; }
-    public DbSet<AlertHistory> AlertHistories { get; set; }
+    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<AlertRule> AlertRules { get; set; } = null!;
+    public DbSet<AlertHistory> AlertHistories { get; set; } = null!;
+    public DbSet<NotificationSettings> NotificationSettings { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

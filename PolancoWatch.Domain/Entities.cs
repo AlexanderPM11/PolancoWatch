@@ -24,3 +24,23 @@ public class AlertHistory
     public string Message { get; set; } = string.Empty;
     public DateTime TriggeredAt { get; set; } = DateTime.UtcNow;
 }
+
+public class NotificationSettings
+{
+    public int Id { get; set; }
+    
+    // Telegram Settings
+    public bool TelegramEnabled { get; set; }
+    public string? TelegramBotToken { get; set; }
+    public string? TelegramChatId { get; set; }
+
+    // Email Settings
+    public bool EmailEnabled { get; set; }
+    public string? SmtpHost { get; set; }
+    public int SmtpPort { get; set; } = 587;
+    public bool SmtpEnableSsl { get; set; } = true;
+    public string? SmtpUser { get; set; }
+    public string? SmtpPass { get; set; }
+    public string? FromEmail { get; set; }
+    public string? ToEmail { get; set; }
+}

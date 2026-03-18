@@ -13,7 +13,7 @@ public class ConsoleAlertNotifier : IAlertNotifier
         _logger = logger;
     }
 
-    public Task NotifyAsync(AlertRule rule, string message, double currentValue)
+    public Task NotifyAsync(AlertRule rule, string message, double currentValue, NotificationSettings settings)
     {
         // In a real scenario, this could be extended to send Emails, Slack messages, etc.
         // For now, it logs a critical warning to the server console which can be picked up by Docker logs.
