@@ -1,6 +1,7 @@
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.AspNetCore.Mvc;
+using PolancoWatch.Application.Interfaces;
 
 namespace PolancoWatch.API.Controllers;
 
@@ -10,11 +11,19 @@ public class DockerController : ControllerBase
 {
     private readonly ILogger<DockerController> _logger;
     private readonly IDockerClient _dockerClient;
+    private readonly IMetricsCollector _metricsCollector;
+    private readonly IMetricsBroadcaster _metricsBroadcaster;
 
-    public DockerController(ILogger<DockerController> logger, IDockerClient dockerClient)
+    public DockerController(
+        ILogger<DockerController> _logger, 
+        IDockerClient dockerClient,
+        IMetricsCollector metricsCollector,
+        IMetricsBroadcaster metricsBroadcaster)
     {
-        _logger = logger;
+        this._logger = _logger;
         _dockerClient = dockerClient;
+        _metricsCollector = metricsCollector;
+        _metricsBroadcaster = metricsBroadcaster;
     }
 
     [HttpPost("container/{id}/start")]
@@ -52,6 +61,14 @@ public class DockerController : ControllerBase
                     break;
                 default:
                     return BadRequest($"Unknown command: {command}");
+            }
+
+            // Trigger immediate broadcast to update UI instantly
+            try {
+                var snapshot = await _metricsCollector.CollectMetricsAsync();
+                await _metricsBroadcaster.BroadcastMetricsAsync(snapshot);
+            } catch (Exception ex) {
+                _logger.LogWarning(ex, "Failed to trigger immediate broadcast after {Command}", command);
             }
 
             return Ok(new { message = $"Container {id} {command}ed successfully" });
