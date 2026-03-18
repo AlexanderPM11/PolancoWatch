@@ -85,6 +85,18 @@ using (var scope = app.Services.CreateScope())
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(defaultPassword),
             IsAdmin = true
         });
+        
+        // Seed default Alert Rules
+        if (!context.AlertRules.Any())
+        {
+            context.AlertRules.AddRange(new List<AlertRule>
+            {
+                new AlertRule { MetricType = MetricType.Cpu, Threshold = 80, IsActive = true },
+                new AlertRule { MetricType = MetricType.Memory, Threshold = 85, IsActive = true },
+                new AlertRule { MetricType = MetricType.Disk, Threshold = 90, IsActive = true }
+            });
+        }
+        
         context.SaveChanges();
     }
 }

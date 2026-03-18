@@ -17,6 +17,8 @@ public class AlertEvaluatorHostedService : BackgroundService
     
     // We store the last snapshot here directly or we could subscribe to a queue
     private ServerMetricsSnapshot? _latestSnapshot;
+    private readonly Dictionary<int, DateTime> _lastTriggeredTimes = new();
+
 
     public AlertEvaluatorHostedService(
         ILogger<AlertEvaluatorHostedService> logger,
@@ -96,12 +98,22 @@ public class AlertEvaluatorHostedService : BackgroundService
 
             if (isTriggered)
             {
+                 // Debouncing
+                 if (_lastTriggeredTimes.TryGetValue(rule.Id, out var lastTriggered))
+                 {
+                     if (DateTime.UtcNow - lastTriggered < TimeSpan.FromSeconds(rule.CooldownSeconds))
+                     {
+                         continue; // Skip within cooldown
+                     }
+                 }
+
                  string message = $"ALERT: {rule.MetricType} usage is at {currentValue}% (Threshold: {rule.Threshold}%)";
                  
-                 // Note: we'd ideally implement debouncing here based on rule.DurationInSeconds
                  _logger.LogWarning(message);
+                 _lastTriggeredTimes[rule.Id] = DateTime.UtcNow;
                  
                  // Save History
+
                  var history = new AlertHistory
                  {
                      AlertRuleId = rule.Id,
