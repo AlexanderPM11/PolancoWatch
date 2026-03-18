@@ -48,6 +48,16 @@ public class DockerContainerMetrics
     public string State { get; set; } = string.Empty;
     public double CpuPercentage { get; set; }
     public long MemoryUsageBytes { get; set; }
+    public string NetworkIO { get; set; } = string.Empty;
+    public string BlockIO { get; set; } = string.Empty;
+}
+
+public class DockerStats
+{
+    public int TotalContainers { get; set; }
+    public int RunningContainers { get; set; }
+    public int StoppedContainers { get; set; }
+    public int TotalImages { get; set; }
 }
 
 public class SystemInfoMetrics
@@ -67,5 +77,6 @@ public class ServerMetricsSnapshot
     public List<NetworkMetrics> Networks { get; set; } = new();
     public List<ProcessMetrics> TopProcesses { get; set; } = new();
     public List<DockerContainerMetrics> DockerContainers { get; set; } = new();
+    public DockerStats DockerStats { get; set; } = new();
     public SystemInfoMetrics SystemInfo { get; set; } = new();
 }

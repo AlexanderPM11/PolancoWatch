@@ -46,7 +46,6 @@ public class SystemMetricsCollector : IMetricsCollector
             await ParseSystemInfoLinuxAsync(snapshot.SystemInfo);
             await ParseDiskAsync(snapshot.Disks);
             await ParseProcessesLinuxAsync(snapshot.TopProcesses);
-            await ParseDockerLinuxAsync(snapshot.DockerContainers);
         }
         else if (OperatingSystem.IsWindows())
         {
@@ -57,6 +56,9 @@ public class SystemMetricsCollector : IMetricsCollector
             await ParseDiskAsync(snapshot.Disks);
             await ParseProcessesWindowsAsync(snapshot.TopProcesses);
         }
+
+        // Always try Docker if possible
+        await ParseDockerAsync(snapshot);
 
         return snapshot;
     }
@@ -425,28 +427,50 @@ public class SystemMetricsCollector : IMetricsCollector
         }
     }
 
-    private async Task ParseDockerLinuxAsync(List<DockerContainerMetrics> dockerContainers)
+    private async Task ParseDockerAsync(ServerMetricsSnapshot snapshot)
     {
+        var dockerContainers = snapshot.DockerContainers;
         try
         {
-            // 1. Get basic info (ID, Name, Image, Status, State)
+            // 1. Get basic info (ID, Name, Image, Status, State) - Added -a for all containers
             var psPsi = new ProcessStartInfo
             {
                 FileName = "docker",
-                Arguments = "ps --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.State}}\"",
+                Arguments = "ps -a --format \"{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.State}}\"",
                 RedirectStandardOutput = true,
+                RedirectStandardError = true, // Capture errors
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
 
             using var psProcess = Process.Start(psPsi);
-            if (psProcess == null) return;
+            if (psProcess == null) 
+            {
+                Console.WriteLine("DEBUG: Failed to start docker ps process (null)");
+                return;
+            }
 
             string psOutput = await psProcess.StandardOutput.ReadToEndAsync();
+            string psError = await psProcess.StandardError.ReadToEndAsync();
             await psProcess.WaitForExitAsync();
 
-            var lines = psOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            if (!string.IsNullOrWhiteSpace(psError))
+            {
+                Console.WriteLine($"DEBUG: docker ps error: {psError}");
+            }
+
+            Console.WriteLine($"DEBUG: docker ps output length: {psOutput.Length}");
+
+            if (string.IsNullOrWhiteSpace(psOutput))
+            {
+                _logger.LogInformation("Docker ps returned no output.");
+                return;
+            }
+
+            var lines = psOutput.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             var containerMap = new Dictionary<string, DockerContainerMetrics>();
+
+            _logger.LogInformation("Docker ps found {Count} lines.", lines.Length);
 
             foreach (var line in lines)
             {
@@ -466,13 +490,22 @@ public class SystemMetricsCollector : IMetricsCollector
                 }
             }
 
+            _logger.LogInformation("Parsed {Count} Docker containers.", dockerContainers.Count);
+
+            // 2. Get Global Stats
+            snapshot.DockerStats.TotalContainers = dockerContainers.Count;
+            snapshot.DockerStats.RunningContainers = dockerContainers.Count(c => c.State == "running");
+            snapshot.DockerStats.StoppedContainers = dockerContainers.Count(c => c.State == "exited" || c.State == "created");
+
+            await FetchImageCountAsync(snapshot.DockerStats);
+
             if (!containerMap.Any()) return;
 
-            // 2. Get resource usage (CPU, Memory)
+            // 3. Get resource usage (CPU, Memory, Net, Block)
             var statsPsi = new ProcessStartInfo
             {
                 FileName = "docker",
-                Arguments = "stats --no-stream --format \"{{.ID}}|{{.CPUPerc}}|{{.MemUsage}}\"",
+                Arguments = "stats --no-stream --format \"{{.ID}}|{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.BlockIO}}\"",
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -484,11 +517,11 @@ public class SystemMetricsCollector : IMetricsCollector
             string statsOutput = await statsProcess.StandardOutput.ReadToEndAsync();
             await statsProcess.WaitForExitAsync();
 
-            var statsLines = statsOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var statsLines = statsOutput.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var line in statsLines)
             {
                 var parts = line.Split('|');
-                if (parts.Length >= 3)
+                if (parts.Length >= 5)
                 {
                     var id = parts[0];
                     if (containerMap.TryGetValue(id, out var container))
@@ -502,6 +535,10 @@ public class SystemMetricsCollector : IMetricsCollector
                         // Parse Memory (e.g., "1.2MiB / 7.6GiB")
                         var memPart = parts[2].Split('/')[0].Trim();
                         container.MemoryUsageBytes = ParseDockerMemory(memPart);
+
+                        // New Metrics
+                        container.NetworkIO = parts[3].Trim();
+                        container.BlockIO = parts[4].Trim();
                     }
                 }
             }
@@ -509,6 +546,34 @@ public class SystemMetricsCollector : IMetricsCollector
         catch (Exception ex)
         {
             _logger.LogWarning("Failed to collect Docker metrics: {Message}", ex.Message);
+        }
+    }
+
+    private async Task FetchImageCountAsync(DockerStats stats)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "docker",
+                Arguments = "images -q",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null) return;
+
+            string output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            var images = output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            stats.TotalImages = images.Length;
+        }
+        catch
+        {
+            // Silently fail for global stats
         }
     }
 
