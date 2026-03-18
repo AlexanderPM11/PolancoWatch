@@ -43,4 +43,8 @@ public class NotificationSettings
     public string? SmtpPass { get; set; }
     public string? FromEmail { get; set; }
     public string? ToEmail { get; set; }
+
+    // Custom Templates
+    public string? TelegramMessageTemplate { get; set; }
+    public string? EmailMessageTemplate { get; set; }
 }

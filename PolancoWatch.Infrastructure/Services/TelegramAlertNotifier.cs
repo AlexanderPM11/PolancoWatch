@@ -26,11 +26,24 @@ public class TelegramAlertNotifier : IAlertNotifier
 
         try
         {
+            var template = settings.TelegramMessageTemplate;
+            if (string.IsNullOrEmpty(template))
+            {
+                template = "🚨 *PolancoWatch Alert*\n\n{Message}\n\n*Metric:* {Metric}\n*Value:* {Value}%\n*Threshold:* {Threshold}%\n*Date:* {Time} UTC";
+            }
+
+            var finalMessage = template
+                .Replace("{Metric}", rule.MetricType.ToString())
+                .Replace("{Value}", currentValue.ToString("F2"))
+                .Replace("{Threshold}", rule.Threshold.ToString())
+                .Replace("{Time}", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"))
+                .Replace("{Message}", message);
+
             var url = $"https://api.telegram.org/bot{settings.TelegramBotToken}/sendMessage";
             var payload = new
             {
                 chat_id = settings.TelegramChatId,
-                text = $"🚨 *PolancoWatch Alert*\n\n{message}\n\n*Metric:* {rule.MetricType}\n*Value:* {currentValue}%\n*Threshold:* {rule.Threshold}%\n*Date:* {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC",
+                text = finalMessage,
                 parse_mode = "Markdown"
             };
 
