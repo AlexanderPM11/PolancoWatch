@@ -41,4 +41,20 @@ public class AuthController : ControllerBase
             username = request.NewUsername ?? username
         });
     }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        var result = await _authService.ForgotPasswordAsync(request);
+        return Ok(new { message = result.Message });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        var result = await _authService.ResetPasswordAsync(request);
+        if (!result.Success) return BadRequest(new { message = result.Message });
+
+        return Ok(new { message = result.Message });
+    }
 }

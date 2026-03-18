@@ -34,6 +34,7 @@ builder.Services.AddSingleton<IAlertNotifier, EmailAlertNotifier>();
 builder.Services.AddSingleton<AlertEvaluatorHostedService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<AlertEvaluatorHostedService>());
 builder.Services.AddHostedService<SystemMetricsHostedService>();
+builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddSignalR();
 
 // Configure Docker Client (Singleton)
@@ -65,13 +66,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll",
-        b => b.SetIsOriginAllowed(_ => true)
+        b => b.WithOrigins("https://polancowatch.apolanco.com", "http://polancowatch.apolanco.com", "http://localhost:5173", "http://localhost:3000")
               .AllowAnyMethod()
               .AllowAnyHeader()
-              .AllowCredentials());
+              .AllowCredentials()
+              .SetIsOriginAllowedToAllowWildcardSubdomains());
 });
 
 var app = builder.Build();
+
+app.UseCors("AllowAll");
 
 // Ensure Data Directory exists for SQLite
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -98,6 +102,7 @@ using (var scope = app.Services.CreateScope())
         {
             Username = "admin",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(defaultPassword),
+            Email = "admin@example.com", // Default email for reset
             IsAdmin = true
         });
         
@@ -126,8 +131,6 @@ using (var scope = app.Services.CreateScope())
 // Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI();
-
-app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -14,11 +14,13 @@ public class AuthService : IAuthService
 {
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly IEmailService _emailService;
 
-    public AuthService(ApplicationDbContext context, IConfiguration configuration)
+    public AuthService(ApplicationDbContext context, IConfiguration configuration, IEmailService emailService)
     {
         _context = context;
         _configuration = configuration;
+        _emailService = emailService;
     }
 
     public async Task<AuthResponse?> AuthenticateAsync(LoginRequest request)
@@ -65,6 +67,46 @@ public class AuthService : IAuthService
 
         string? newToken = usernameChanged ? GenerateToken(user) : null;
         return (true, "Profile updated successfully.", newToken);
+    }
+
+    public async Task<(bool Success, string Message)> ForgotPasswordAsync(ForgotPasswordRequest request)
+    {
+        var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == request.Email);
+        if (user == null) return (true, "If an account with that email exists, a reset link will be sent."); // Security: don't reveal if user exists
+
+        var token = Guid.NewGuid().ToString();
+        user.ResetToken = token;
+        user.ResetTokenExpiry = DateTime.UtcNow.AddHours(1);
+        await _context.SaveChangesAsync();
+
+        var settings = await _context.NotificationSettings.FirstOrDefaultAsync();
+        var resetLink = $"{_configuration["AppUrl"]}/reset-password?token={token}";
+        var body = $@"
+            <div style='font-family: sans-serif; padding: 20px; border: 1px solid #6366f1; border-radius: 8px;'>
+                <h2 style='color: #6366f1;'>PolancoWatch Password Reset</h2>
+                <p>You requested a password reset. Click the button below to set a new password:</p>
+                <a href='{resetLink}' style='display: inline-block; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;'>Reset Password</a>
+                <p>Or copy this link: {resetLink}</p>
+                <hr/>
+                <p style='font-size: 12px; color: #666;'>If you didn't request this, you can ignore this email. This link expires in 1 hour.</p>
+            </div>";
+
+        await _emailService.SendEmailAsync(user.Email, "PolancoWatch: Password Reset Request", body, settings);
+
+        return (true, "If an account with that email exists, a reset link will be sent.");
+    }
+
+    public async Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordRequest request)
+    {
+        var user = await _context.Users.SingleOrDefaultAsync(u => u.ResetToken == request.Token && u.ResetTokenExpiry > DateTime.UtcNow);
+        if (user == null) return (false, "Invalid or expired reset token.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.ResetToken = null;
+        user.ResetTokenExpiry = null;
+        await _context.SaveChangesAsync();
+
+        return (true, "Password reset successfully.");
     }
 
     private string GenerateToken(PolancoWatch.Domain.Entities.User user)

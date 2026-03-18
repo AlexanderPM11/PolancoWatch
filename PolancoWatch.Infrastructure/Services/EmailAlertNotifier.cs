@@ -9,11 +9,13 @@ namespace PolancoWatch.Infrastructure.Services;
 
 public class EmailAlertNotifier : IAlertNotifier
 {
+    private readonly IEmailService _emailService;
     private readonly ILogger<EmailAlertNotifier> _logger;
 
-    public EmailAlertNotifier(ILogger<EmailAlertNotifier> logger)
+    public EmailAlertNotifier(ILogger<EmailAlertNotifier> logger, IEmailService emailService)
     {
         _logger = logger;
+        _emailService = emailService;
     }
 
     public async Task NotifyAsync(AlertRule rule, string message, double currentValue, NotificationSettings settings)
@@ -49,32 +51,7 @@ public class EmailAlertNotifier : IAlertNotifier
                 .Replace("{Time}", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"))
                 .Replace("{Message}", message);
 
-            var email = new MimeMessage();
-            email.From.Add(MailboxAddress.Parse(settings.FromEmail ?? "alerts@polancowatch.com"));
-            email.To.Add(MailboxAddress.Parse(settings.ToEmail));
-            email.Subject = $"PolancoWatch Alert: {rule.MetricType} usage is high";
-
-            var bodyBuilder = new BodyBuilder
-            {
-                HtmlBody = finalHtml
-            };
-
-            email.Body = bodyBuilder.ToMessageBody();
-
-            using var smtp = new SmtpClient();
-            var options = settings.SmtpEnableSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
-            
-            await smtp.ConnectAsync(settings.SmtpHost, settings.SmtpPort, options);
-            
-            if (!string.IsNullOrEmpty(settings.SmtpUser) && !string.IsNullOrEmpty(settings.SmtpPass))
-            {
-                await smtp.AuthenticateAsync(settings.SmtpUser, settings.SmtpPass);
-            }
-
-            await smtp.SendAsync(email);
-            await smtp.DisconnectAsync(true);
-
-            _logger.LogInformation("Email notification sent successfully to {Recipient} for rule {RuleId}", settings.ToEmail, rule.Id);
+            await _emailService.SendEmailAsync(settings.ToEmail, $"PolancoWatch Alert: {rule.MetricType} usage is high", finalHtml, settings);
         }
         catch (Exception ex)
         {
