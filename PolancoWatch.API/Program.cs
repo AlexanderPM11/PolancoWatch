@@ -34,6 +34,7 @@ builder.Services.AddSingleton<IAlertNotifier, EmailAlertNotifier>();
 builder.Services.AddSingleton<AlertEvaluatorHostedService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<AlertEvaluatorHostedService>());
 builder.Services.AddHostedService<SystemMetricsHostedService>();
+builder.Services.AddHostedService<MetricPersistenceHostedService>();
 builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSignalR();

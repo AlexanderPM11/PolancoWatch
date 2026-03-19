@@ -1,43 +1,35 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PolancoWatch.Application.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using PolancoWatch.Infrastructure.Data;
+using PolancoWatch.Domain.Entities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace PolancoWatch.API.Controllers;
 
-[Authorize] // Requires JWT
 [ApiController]
-[Route("api/metrics")]
+[Route("api/[controller]")]
 public class MetricsController : ControllerBase
 {
-    private readonly IMetricsCollector _metricsCollector;
+    private readonly ApplicationDbContext _context;
 
-    public MetricsController(IMetricsCollector metricsCollector)
+    public MetricsController(ApplicationDbContext context)
     {
-        _metricsCollector = metricsCollector;
+        _context = context;
     }
 
-    [HttpGet("snapshot")]
-    public async Task<IActionResult> GetSnapshot()
+    [HttpGet("history")]
+    public async Task<ActionResult<IEnumerable<HistoricalMetric>>> GetHistory([FromQuery] int durationHours = 24)
     {
-        var snapshot = await _metricsCollector.CollectMetricsAsync();
-        return Ok(snapshot);
-    }
-
-    [HttpPost("processes/{pid}/kill")]
-    public async Task<IActionResult> KillProcess(int pid)
-    {
-        var result = await _metricsCollector.KillProcessAsync(pid);
+        var cutoff = DateTime.UtcNow.AddHours(-durationHours);
         
-        if (result.Success)
-        {
-            return Ok(new { message = result.Message });
-        }
-
-        if (result.Message.Contains("Access Denied"))
-        {
-            return StatusCode(403, new { message = result.Message });
-        }
-        
-        return BadRequest(new { message = result.Message });
+        var history = await _context.HistoricalMetrics
+            .Where(m => m.Timestamp >= cutoff)
+            .OrderBy(m => m.Timestamp)
+            .ToListAsync();
+            
+        return Ok(history);
     }
 }
