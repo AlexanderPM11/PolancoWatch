@@ -11,6 +11,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:80
+      - APP_URL=${APP_URL:-http://localhost:5173}
     
     # --- DOKPLOY METRICS MAGIC ---
     # This allows the container to see all processes on the real host (VPS)
