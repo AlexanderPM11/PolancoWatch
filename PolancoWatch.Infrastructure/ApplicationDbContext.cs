@@ -15,6 +15,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<AlertHistory> AlertHistories { get; set; } = null!;
     public DbSet<NotificationSettings> NotificationSettings { get; set; } = null!;
     public DbSet<HistoricalMetric> HistoricalMetrics { get; set; } = null!;
+    public DbSet<WebMonitor> WebMonitors { get; set; } = null!;
+    public DbSet<WebCheck> WebChecks { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

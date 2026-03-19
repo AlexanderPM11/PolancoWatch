@@ -35,6 +35,8 @@ builder.Services.AddSingleton<AlertEvaluatorHostedService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<AlertEvaluatorHostedService>());
 builder.Services.AddHostedService<SystemMetricsHostedService>();
 builder.Services.AddHostedService<MetricPersistenceHostedService>();
+builder.Services.AddHostedService<WebMonitorHostedService>();
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSignalR();
@@ -113,6 +115,17 @@ using (var scope = app.Services.CreateScope())
                 new AlertRule { MetricType = MetricType.Cpu, Threshold = 80, IsActive = true },
                 new AlertRule { MetricType = MetricType.Memory, Threshold = 85, IsActive = true },
                 new AlertRule { MetricType = MetricType.Disk, Threshold = 90, IsActive = true }
+            });
+        }
+        
+        // Seed initial Web Monitor
+        if (!context.WebMonitors.Any())
+        {
+            context.WebMonitors.Add(new WebMonitor 
+            { 
+                Name = "Google Search", 
+                Url = "https://www.google.com", 
+                CheckIntervalSeconds = 60 
             });
         }
         

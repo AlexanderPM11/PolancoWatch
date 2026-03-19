@@ -111,6 +111,7 @@ public class AuthService : IAuthService
         
         var message = $@"*PolancoWatch Recovery Protocol*
 
+*Application:* PolancoWatch
 A password reset has been requested for the user: *{user.Username}*
 
 Copy and paste the link below in your browser to set a new security key:
