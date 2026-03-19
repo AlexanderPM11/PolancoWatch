@@ -8,13 +8,13 @@ namespace PolancoWatch.Infrastructure.Services;
 
 public class TelegramAlertNotifier : IAlertNotifier
 {
+    private readonly ITelegramService _telegramService;
     private readonly ILogger<TelegramAlertNotifier> _logger;
-    private readonly HttpClient _httpClient;
 
-    public TelegramAlertNotifier(ILogger<TelegramAlertNotifier> logger, HttpClient httpClient)
+    public TelegramAlertNotifier(ILogger<TelegramAlertNotifier> logger, ITelegramService telegramService)
     {
         _logger = logger;
-        _httpClient = httpClient;
+        _telegramService = telegramService;
     }
 
     public async Task NotifyAsync(AlertRule rule, string message, double currentValue, NotificationSettings settings)
@@ -39,26 +39,7 @@ public class TelegramAlertNotifier : IAlertNotifier
                 .Replace("{Time}", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"))
                 .Replace("{Message}", message);
 
-            var url = $"https://api.telegram.org/bot{settings.TelegramBotToken}/sendMessage";
-            var payload = new
-            {
-                chat_id = settings.TelegramChatId,
-                text = finalMessage,
-                parse_mode = "Markdown"
-            };
-
-            var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync(url, content);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Failed to send Telegram notification. Status: {Status}, Error: {Error}", response.StatusCode, error);
-            }
-            else
-            {
-                _logger.LogInformation("Telegram notification sent successfully for rule {RuleId}", rule.Id);
-            }
+            await _telegramService.SendMessageAsync(finalMessage, settings);
         }
         catch (Exception ex)
         {

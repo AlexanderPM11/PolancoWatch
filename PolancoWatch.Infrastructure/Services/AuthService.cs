@@ -15,12 +15,14 @@ public class AuthService : IAuthService
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly IEmailService _emailService;
+    private readonly ITelegramService _telegramService;
 
-    public AuthService(ApplicationDbContext context, IConfiguration configuration, IEmailService emailService)
+    public AuthService(ApplicationDbContext context, IConfiguration configuration, IEmailService emailService, ITelegramService telegramService)
     {
         _context = context;
         _configuration = configuration;
         _emailService = emailService;
+        _telegramService = telegramService;
     }
 
     public async Task<AuthResponse?> AuthenticateAsync(LoginRequest request)
@@ -81,19 +83,19 @@ public class AuthService : IAuthService
 
         var settings = await _context.NotificationSettings.FirstOrDefaultAsync();
         var resetLink = $"{_configuration["AppUrl"]}/reset-password?token={token}";
-        var body = $@"
-            <div style='font-family: sans-serif; padding: 20px; border: 1px solid #6366f1; border-radius: 8px;'>
-                <h2 style='color: #6366f1;'>PolancoWatch Password Reset</h2>
-                <p>You requested a password reset. Click the button below to set a new password:</p>
-                <a href='{resetLink}' style='display: inline-block; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;'>Reset Password</a>
-                <p>Or copy this link: {resetLink}</p>
-                <hr/>
-                <p style='font-size: 12px; color: #666;'>If you didn't request this, you can ignore this email. This link expires in 1 hour.</p>
-            </div>";
+        
+        var message = $@"*PolancoWatch Recovery Protocol*
 
-        await _emailService.SendEmailAsync(user.Email, "PolancoWatch: Password Reset Request", body, settings);
+A password reset has been requested for the user: *{user.Username}*
 
-        return (true, "If an account with that email exists, a reset link will be sent.");
+Click the link below to set a new security key:
+[SECURE_RESET_LINK]({resetLink})
+
+_If you didn't request this, you can ignore this message._";
+
+        await _telegramService.SendMessageAsync(message, settings);
+
+        return (true, "If an account with that email exists, a recovery message will be sent to the configured Telegram bot.");
     }
 
     public async Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordRequest request)

@@ -35,6 +35,7 @@ builder.Services.AddSingleton<AlertEvaluatorHostedService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<AlertEvaluatorHostedService>());
 builder.Services.AddHostedService<SystemMetricsHostedService>();
 builder.Services.AddSingleton<IEmailService, EmailService>();
+builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSignalR();
 
 // Configure Docker Client (Singleton)
