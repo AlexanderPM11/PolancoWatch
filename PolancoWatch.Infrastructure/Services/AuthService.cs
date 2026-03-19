@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -90,9 +91,17 @@ public class AuthService : IAuthService
 
         if (user == null) return (true, "Recovery protocol initiated."); 
 
+        // Check 5-minute cooldown
+        if (user.LastResetRequest.HasValue && (DateTime.UtcNow - user.LastResetRequest.Value).TotalMinutes < 5)
+        {
+            var remainingMinutes = 5 - (int)(DateTime.UtcNow - user.LastResetRequest.Value).TotalMinutes;
+            return (false, $"ERROR_COOLDOWN_ACTIVE: PLEASE WAIT {remainingMinutes} MINUTES BEFORE REQUESTING ANOTHER RESET.");
+        }
+
         var token = Guid.NewGuid().ToString();
         user.ResetToken = token;
         user.ResetTokenExpiry = DateTime.UtcNow.AddHours(1);
+        user.LastResetRequest = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         var appUrl = Environment.GetEnvironmentVariable("APP_URL") ?? 

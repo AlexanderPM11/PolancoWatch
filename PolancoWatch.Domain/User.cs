@@ -1,3 +1,5 @@
+using System;
+
 namespace PolancoWatch.Domain.Entities;
 
 public class User
@@ -8,5 +10,6 @@ public class User
     public string Email { get; set; } = string.Empty;
     public string? ResetToken { get; set; }
     public DateTime? ResetTokenExpiry { get; set; }
+    public DateTime? LastResetRequest { get; set; }
     public bool IsAdmin { get; set; }
 }
