@@ -67,16 +67,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll",
-        b => b.WithOrigins("https://polancowatch.apolanco.com", "http://polancowatch.apolanco.com", "http://localhost:5173", "http://localhost:3000")
+        b => b.SetIsOriginAllowed(_ => true)
               .AllowAnyMethod()
               .AllowAnyHeader()
-              .AllowCredentials()
-              .SetIsOriginAllowedToAllowWildcardSubdomains());
+              .AllowCredentials());
 });
 
 var app = builder.Build();
-
-app.UseCors("AllowAll");
 
 // Ensure Data Directory exists for SQLite
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -132,6 +129,9 @@ using (var scope = app.Services.CreateScope())
 // Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI();
+
+app.UseRouting();
+app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();

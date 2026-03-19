@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -7,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using PolancoWatch.Application.DTOs;
 using PolancoWatch.Application.Interfaces;
 using PolancoWatch.Infrastructure.Data;
+using PolancoWatch.Domain.Entities;
 
 namespace PolancoWatch.Infrastructure.Services;
 
@@ -46,7 +48,6 @@ public class AuthService : IAuthService
         var user = await _context.Users.SingleOrDefaultAsync(u => u.Username == currentUsername);
         if (user == null) return (false, "User not found.", null);
 
-        // Verify current password for any sensitive change
         bool verified = BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash);
         if (!verified) return (false, "Incorrect current password.", null);
 
@@ -73,29 +74,44 @@ public class AuthService : IAuthService
 
     public async Task<(bool Success, string Message)> ForgotPasswordAsync(ForgotPasswordRequest request)
     {
-        var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == request.Email);
-        if (user == null) return (true, "If an account with that email exists, a reset link will be sent."); // Security: don't reveal if user exists
+        var user = await _context.Users.SingleOrDefaultAsync(u => 
+            (!string.IsNullOrEmpty(request.Email) && u.Email == request.Email) ||
+            (!string.IsNullOrEmpty(request.Username) && u.Username == request.Username));
+
+        var settings = await _context.NotificationSettings.FirstOrDefaultAsync();
+        bool isTelegramConfigured = settings != null && 
+                                  !string.IsNullOrWhiteSpace(settings.TelegramBotToken) && 
+                                  !string.IsNullOrWhiteSpace(settings.TelegramChatId);
+
+        if (!isTelegramConfigured)
+        {
+            return (false, "ERROR_TELEGRAM_NOT_CONFIGURED");
+        }
+
+        if (user == null) return (true, "Recovery protocol initiated."); 
 
         var token = Guid.NewGuid().ToString();
         user.ResetToken = token;
         user.ResetTokenExpiry = DateTime.UtcNow.AddHours(1);
         await _context.SaveChangesAsync();
 
-        var settings = await _context.NotificationSettings.FirstOrDefaultAsync();
-        var resetLink = $"{_configuration["AppUrl"]}/reset-password?token={token}";
+        var appUrl = Environment.GetEnvironmentVariable("APP_URL") ?? 
+                     _configuration["APP_URL"] ?? 
+                     "http://localhost:5173";
+        var resetLink = $"{appUrl}/reset-password?token={token}";
         
         var message = $@"*PolancoWatch Recovery Protocol*
 
 A password reset has been requested for the user: *{user.Username}*
 
-Click the link below to set a new security key:
-[SECURE_RESET_LINK]({resetLink})
+Copy and paste the link below in your browser to set a new security key:
+{resetLink}
 
 _If you didn't request this, you can ignore this message._";
 
         await _telegramService.SendMessageAsync(message, settings);
 
-        return (true, "If an account with that email exists, a recovery message will be sent to the configured Telegram bot.");
+        return (true, "Recovery protocol initiated. Check your Telegram bot.");
     }
 
     public async Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordRequest request)
@@ -111,7 +127,7 @@ _If you didn't request this, you can ignore this message._";
         return (true, "Password reset successfully.");
     }
 
-    private string GenerateToken(PolancoWatch.Domain.Entities.User user)
+    private string GenerateToken(User user)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"] ?? "super_secret_key_change_me_in_production");
