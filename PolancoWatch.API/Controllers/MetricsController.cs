@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PolancoWatch.Infrastructure.Data;
 using PolancoWatch.Domain.Entities;
+using PolancoWatch.Domain.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,7 +24,7 @@ public class MetricsController : ControllerBase
     [HttpGet("history")]
     public async Task<ActionResult<IEnumerable<HistoricalMetric>>> GetHistory([FromQuery] int durationHours = 24)
     {
-        var cutoff = DateTime.UtcNow.AddHours(-durationHours);
+        var cutoff = TimeHelper.Now.AddHours(-durationHours);
         
         var history = await _context.HistoricalMetrics
             .Where(m => m.Timestamp >= cutoff)

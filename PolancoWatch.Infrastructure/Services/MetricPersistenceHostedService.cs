@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PolancoWatch.Application.Interfaces;
 using PolancoWatch.Domain.Entities;
+using PolancoWatch.Domain.Common;
 using PolancoWatch.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +26,16 @@ public class MetricPersistenceHostedService : BackgroundService
         _logger.LogInformation("Metric Persistence Service is starting.");
 
         using PeriodicTimer timer = new PeriodicTimer(_period);
+        
+        // Initial save on startup
+        try
+        {
+            await SaveMetricSnapshot(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Initial metric save failed.");
+        }
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
@@ -50,7 +61,7 @@ public class MetricPersistenceHostedService : BackgroundService
 
         var historicalMetric = new HistoricalMetric
         {
-            Timestamp = DateTime.UtcNow,
+            Timestamp = TimeHelper.Now,
             CpuUsage = metrics.Cpu.TotalUsagePercentage,
             MemoryUsage = metrics.Memory.UsagePercentage,
             DiskUsage = metrics.Disks.FirstOrDefault()?.UsagePercentage ?? 0
@@ -68,7 +79,7 @@ public class MetricPersistenceHostedService : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         // Keep last 7 days of data
-        var cutoff = DateTime.UtcNow.AddDays(-7);
+        var cutoff = TimeHelper.Now.AddDays(-7);
         var oldMetrics = await context.HistoricalMetrics
             .Where(m => m.Timestamp < cutoff)
             .ExecuteDeleteAsync(ct);

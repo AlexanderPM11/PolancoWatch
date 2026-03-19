@@ -10,6 +10,7 @@ using PolancoWatch.Application.DTOs;
 using PolancoWatch.Application.Interfaces;
 using PolancoWatch.Infrastructure.Data;
 using PolancoWatch.Domain.Entities;
+using PolancoWatch.Domain.Common;
 
 namespace PolancoWatch.Infrastructure.Services;
 
@@ -92,16 +93,16 @@ public class AuthService : IAuthService
         if (user == null) return (true, "Recovery protocol initiated."); 
 
         // Check 5-minute cooldown
-        if (user.LastResetRequest.HasValue && (DateTime.UtcNow - user.LastResetRequest.Value).TotalMinutes < 5)
+        if (user.LastResetRequest.HasValue && (TimeHelper.Now - user.LastResetRequest.Value).TotalMinutes < 5)
         {
-            var remainingMinutes = 5 - (int)(DateTime.UtcNow - user.LastResetRequest.Value).TotalMinutes;
+            var remainingMinutes = 5 - (int)(TimeHelper.Now - user.LastResetRequest.Value).TotalMinutes;
             return (false, $"ERROR_COOLDOWN_ACTIVE: PLEASE WAIT {remainingMinutes} MINUTES BEFORE REQUESTING ANOTHER RESET.");
         }
 
         var token = Guid.NewGuid().ToString();
         user.ResetToken = token;
-        user.ResetTokenExpiry = DateTime.UtcNow.AddHours(1);
-        user.LastResetRequest = DateTime.UtcNow;
+        user.ResetTokenExpiry = TimeHelper.Now.AddHours(1);
+        user.LastResetRequest = TimeHelper.Now;
         await _context.SaveChangesAsync();
 
         var appUrl = Environment.GetEnvironmentVariable("APP_URL") ?? 
@@ -126,7 +127,7 @@ _If you didn't request this, you can ignore this message._";
 
     public async Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordRequest request)
     {
-        var user = await _context.Users.SingleOrDefaultAsync(u => u.ResetToken == request.Token && u.ResetTokenExpiry > DateTime.UtcNow);
+        var user = await _context.Users.SingleOrDefaultAsync(u => u.ResetToken == request.Token && u.ResetTokenExpiry > TimeHelper.Now);
         if (user == null) return (false, "Invalid or expired reset token.");
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);

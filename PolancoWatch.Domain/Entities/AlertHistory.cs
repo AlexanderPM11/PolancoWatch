@@ -1,4 +1,5 @@
 using System;
+using PolancoWatch.Domain.Common;
 
 namespace PolancoWatch.Domain.Entities;
 
@@ -8,5 +9,5 @@ public class AlertHistory
     public int AlertRuleId { get; set; }
     public AlertRule AlertRule { get; set; } = null!;
     public string Message { get; set; } = string.Empty;
-    public DateTime TriggeredAt { get; set; } = DateTime.UtcNow;
+    public DateTime TriggeredAt { get; set; } = TimeHelper.Now;
 }

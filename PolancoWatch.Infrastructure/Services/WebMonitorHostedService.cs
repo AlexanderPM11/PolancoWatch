@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PolancoWatch.Application.Interfaces;
 using PolancoWatch.Domain.Entities;
+using PolancoWatch.Domain.Common;
 using PolancoWatch.Infrastructure.Data;
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
@@ -65,7 +66,7 @@ public class WebMonitorHostedService : BackgroundService
         {
             // Simple interval logic: if LastCheck + Interval < Now, skip
             if (monitor.LastCheckTime.HasValue && 
-                monitor.LastCheckTime.Value.AddSeconds(monitor.CheckIntervalSeconds) > DateTime.UtcNow)
+                monitor.LastCheckTime.Value.AddSeconds(monitor.CheckIntervalSeconds) > TimeHelper.Now)
             {
                 continue;
             }
@@ -73,7 +74,7 @@ public class WebMonitorHostedService : BackgroundService
             var check = new WebCheck
             {
                 WebMonitorId = monitor.Id,
-                Timestamp = DateTime.UtcNow
+                Timestamp = TimeHelper.Now
             };
 
             var sw = Stopwatch.StartNew();
@@ -107,7 +108,7 @@ public class WebMonitorHostedService : BackgroundService
             }
 
             // Update Monitor State
-            monitor.LastCheckTime = DateTime.UtcNow;
+            monitor.LastCheckTime = TimeHelper.Now;
             monitor.LastStatusUp = check.IsUp;
             monitor.LastLatencyMs = check.LatencyMs;
 
@@ -127,7 +128,7 @@ public class WebMonitorHostedService : BackgroundService
                       $"*URL:* {monitor.Url}\n" +
                       $"*Status:* DOWN ({(check.StatusCode > 0 ? check.StatusCode.ToString() : "Timeout/Error")})\n" +
                       $"*Error:* {check.ErrorMessage ?? "None"}\n" +
-                      $"*Time:* {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC";
+                      $"*Time:* {TimeHelper.Now:yyyy-MM-dd HH:mm:ss} (AST)";
 
         await telegram.SendMessageAsync(message, settings);
     }
@@ -139,7 +140,7 @@ public class WebMonitorHostedService : BackgroundService
                       $"*URL:* {monitor.Url}\n" +
                       $"*Status:* UP ({check.StatusCode})\n" +
                       $"*Latency:* {check.LatencyMs:F0}ms\n" +
-                      $"*Time:* {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC";
+                      $"*Time:* {TimeHelper.Now:yyyy-MM-dd HH:mm:ss} (AST)";
 
         await telegram.SendMessageAsync(message, settings);
     }

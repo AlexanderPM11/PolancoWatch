@@ -1,4 +1,5 @@
 using System;
+using PolancoWatch.Domain.Common;
 
 namespace PolancoWatch.Domain.Entities;
 
